@@ -955,7 +955,15 @@ function PoolStats({ state }: { state: PoolState }) {
 
             <div className="quad">
               {[
-                ['Reserve share of pool', `${pct((state.reserveEth / Math.max(1e-9, state.totalEthInPool)) * 100)}%`, false],
+                // Guarding the divisor with 1e-9 turned an empty pool into
+                // "5,000,000.00%". There is no meaningful share of nothing.
+                [
+                  'Reserve share of pool',
+                  state.totalEthInPool > 0
+                    ? `${pct((state.reserveEth / state.totalEthInPool) * 100)}%`
+                    : '—',
+                  false,
+                ],
                 ['Anonymity set, 30d', `+${pct(state.anonSetGrowth30d, 1)}%`, true],
                 ['Average note age', `${state.avgNoteAgeDays.toFixed(1)}d`, false],
                 ['Reserve withdrawal fn', 'None', false],

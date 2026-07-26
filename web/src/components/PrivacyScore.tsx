@@ -64,16 +64,26 @@ export function PrivacyScore({ a }: { a: PrivacyAssessment }) {
             color: 'var(--ink-70)',
           }}
         >
-          <span>
-            <b className="tabular">{count(a.effectiveAnonSet)}</b> notes could be
-            yours
-          </span>
-          <span>
-            <b className="tabular" style={{ color }}>
-              1 in {count(a.effectiveAnonSet)}
-            </b>{' '}
-            indistinguishable
-          </span>
+          {/* "1 in 0" is not a probability. An empty pool has no cover to
+              describe, so it says so rather than printing a broken ratio. */}
+          {a.effectiveAnonSet > 0 ? (
+            <>
+              <span>
+                <b className="tabular">{count(a.effectiveAnonSet)}</b> notes could
+                be yours
+              </span>
+              <span>
+                <b className="tabular" style={{ color }}>
+                  1 in {count(a.effectiveAnonSet)}
+                </b>{' '}
+                indistinguishable
+              </span>
+            </>
+          ) : (
+            <span style={{ color }}>
+              The pool is empty — there is nothing to hide among yet.
+            </span>
+          )}
           {a.suggestedWaitHours !== null && a.scoreAfterWait !== null && (
             <span style={{ color: 'var(--accent)' }}>
               Wait {a.suggestedWaitHours}h → {a.scoreAfterWait}

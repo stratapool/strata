@@ -40,3 +40,4 @@ assets/fonts/
 # artefacts written for one reader and phrased accordingly.
 plans/
 docs/
+contracts/deployments/e2e-keys-*.json

@@ -17,7 +17,7 @@
  * What it does NOT prove: that the anonymity set is large enough to hide
  * anyone. With five notes it is five. That is a separate, statistical claim.
  */
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ethers } from 'ethers';
@@ -97,9 +97,20 @@ async function main() {
   }
 
   // ---------------------------------------------------------------- deposit
+  // Every key this run creates is written out before it is funded. An earlier
+  // version kept only the addresses, and the run's 0.05 ETH ended up in five
+  // wallets nobody could open — spent, not lost to a bug, but unrecoverable
+  // all the same.
+  const keyFile = path.join(HERE, '..', 'deployments', `e2e-keys-${net.chainId}.json`);
+  const keys = [];
+  const saveKeys = async () =>
+    writeFile(keyFile, JSON.stringify(keys, null, 2));
+
   const actors = [];
   for (let i = 0; i < N; i++) {
     const w = ethers.Wallet.createRandom().connect(provider);
+    keys.push({ role: 'depositor', index: i, address: w.address, privateKey: w.privateKey });
+    await saveKeys();
     const tx = await funder.sendTransaction({ to: w.address, value: perWallet });
     await tx.wait();
 
@@ -154,7 +165,10 @@ async function main() {
   for (const idx of order) {
     const a = actors[idx];
     const leafIndex = leaves.findIndex((c) => c === a.commitment);
-    const recipient = ethers.Wallet.createRandom().address;
+    const recipientWallet = ethers.Wallet.createRandom();
+    const recipient = recipientWallet.address;
+    keys.push({ role: 'recipient', leafIndex, address: recipient, privateKey: recipientWallet.privateKey });
+    await saveKeys();
 
     const { proof, root } = await proveWithdrawal({
       note: a,
@@ -212,6 +226,11 @@ async function main() {
   }
 
   await observerView(pool, info, provider, actors);
+
+  rule();
+  line(`Every key this run generated is in ${path.relative(process.cwd(), keyFile)}.`);
+  line('It is gitignored. Sweep the balances back out before deleting it, or');
+  line('the funds sitting in those addresses become unreachable.');
 }
 
 /**
