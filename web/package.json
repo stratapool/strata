@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Strata — fixed-denomination privacy pool on Robinhood Chain. Frontend.",
+  "description": "Strata \u2014 fixed-denomination privacy pool on Robinhood Chain. Frontend.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -19,7 +19,8 @@
     "ethers": "^6.17.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "snarkjs": "^0.7.6"
+    "snarkjs": "^0.7.6",
+    "blake-hash": "^2.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
