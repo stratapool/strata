@@ -4,6 +4,7 @@ import { Lockup } from '../components/Logo';
 import { count, eth } from '../lib/format';
 
 const X_URL = 'https://x.com/starccai';
+const GITHUB_URL = 'https://github.com/stratapool/strata';
 
 /**
  * A different address on every load.
@@ -463,9 +464,11 @@ export function Landing() {
             <a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-55)', textDecoration: 'none' }}>
               X
             </a>
-            {/* Honest until each exists: an "AUDIT" link that goes nowhere on
-                an unaudited contract is exactly the wrong kind of signalling. */}
-            <span style={{ opacity: 0.45 }}>DOCS · GITHUB</span>
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-55)', textDecoration: 'none' }}>
+              GITHUB
+            </a>
+            {/* No AUDIT link: there is no audit, and a dead link where one
+                would go is exactly the wrong kind of signalling. */}
           </span>
         </div>
       </div>

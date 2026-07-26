@@ -12,10 +12,7 @@ import { isLive } from '../lib/usePool';
 import type { PoolClient, PoolState } from '../lib/types';
 import type { useWallet } from '../lib/useWallet';
 
-// Points at the repo once it is public. Until then the note still says
-// "read the code" — which is only meaningful if the code is reachable, so
-// publishing it is a prerequisite for taking anyone else's deposits.
-const GITHUB_URL = 'https://github.com/';
+const GITHUB_URL = 'https://github.com/stratapool/strata';
 
 type Wallet = ReturnType<typeof useWallet>;
 
