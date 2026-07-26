@@ -13,6 +13,11 @@ const PoolApp = lazy(() =>
   import('./pages/PoolApp').then((m) => ({ default: m.PoolApp })),
 );
 
+/** Split for the same reason: it pulls snarkjs in to run a contribution. */
+const Ceremony = lazy(() =>
+  import('./pages/Ceremony').then((m) => ({ default: m.Ceremony })),
+);
+
 /**
  * Simulated builds still get a banner: every number on them is fabricated,
  * and a privacy product showing an invented TVL without saying so is doing
@@ -43,7 +48,7 @@ export function Root() {
   return (
     <>
       <Banner live={isLive()} />
-      {route.startsWith('/app') ? (
+      {route.startsWith('/app') || route.startsWith('/ceremony') ? (
         <Suspense
           fallback={
             <div
@@ -54,7 +59,7 @@ export function Root() {
             </div>
           }
         >
-          <PoolApp />
+          {route.startsWith('/app') ? <PoolApp /> : <Ceremony />}
         </Suspense>
       ) : (
         <Landing />

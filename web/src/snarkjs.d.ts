@@ -16,4 +16,19 @@ declare module 'snarkjs' {
       proof: unknown,
     ): Promise<boolean>;
   }
+
+  export namespace zKey {
+    /**
+     * In a browser the two file arguments are fastFile memory descriptors
+     * rather than paths: a Uint8Array going in, and `{ type: 'mem' }` coming
+     * out, whose bytes land on `.data` once the call resolves.
+     */
+    function contribute(
+      zkeyOld: Uint8Array | string,
+      zkeyNew: { type: 'mem'; data?: Uint8Array } | string,
+      name: string,
+      entropy: string,
+      logger?: unknown,
+    ): Promise<unknown>;
+  }
 }

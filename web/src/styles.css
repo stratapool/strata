@@ -324,6 +324,27 @@ input {
   gap: 6px;
 }
 
+/* Text inputs on the ceremony page. Full width by default: every one of them
+   holds something long — an address, a hash, a keyboard mash — and a field
+   narrower than its content invites people to submit a truncated value they
+   cannot see the end of. */
+.field {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ink-25);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.field:focus {
+  border-color: var(--ink);
+}
+.field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .social-links {
   display: flex;
   align-items: center;
