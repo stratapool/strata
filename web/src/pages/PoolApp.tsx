@@ -7,13 +7,11 @@ import { PrivacyScore } from '../components/PrivacyScore';
 import { Steps } from '../components/Steps';
 import { WalletChip, WalletGate } from '../components/WalletChip';
 import { Lockup } from '../components/Logo';
+import { SocialLinks, X_URL, GITHUB_URL } from '../components/Social';
 import { initAppKit } from '../config/appkit';
 import { isLive } from '../lib/usePool';
 import type { PoolClient, PoolState } from '../lib/types';
 import type { useWallet } from '../lib/useWallet';
-
-const GITHUB_URL = 'https://github.com/stratapool/strata';
-const X_URL = 'https://x.com/starccai';
 
 type Wallet = ReturnType<typeof useWallet>;
 
@@ -70,6 +68,7 @@ export function PoolApp() {
             ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <SocialLinks />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.25 }}>
               <span className="eyebrow" style={{ fontSize: 10, letterSpacing: '.18em' }}>Private balance</span>
               <span className="display tabular" style={{ fontWeight: 600, fontSize: 18 }}>

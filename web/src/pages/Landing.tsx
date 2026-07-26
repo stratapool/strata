@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePool } from '../lib/usePool';
 import { Lockup } from '../components/Logo';
+import { SocialLinks, X_URL, GITHUB_URL } from '../components/Social';
 import { count, eth } from '../lib/format';
-
-const X_URL = 'https://x.com/starccai';
-const GITHUB_URL = 'https://github.com/stratapool/strata';
 
 /**
  * A different address on every load.
@@ -109,14 +107,7 @@ export function Landing() {
           <a href="#docs" style={{ textDecoration: 'none' }}>Docs</a>
         </div>
         <div className="landing-nav-actions">
-          <a
-            href={X_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: 'none', color: 'var(--ink-70)', whiteSpace: 'nowrap' }}
-          >
-            @starccai
-          </a>
+          <SocialLinks />
           <a href="#/app" style={{ textDecoration: 'none', fontWeight: 500, whiteSpace: 'nowrap' }}>
             Connect wallet
           </a>

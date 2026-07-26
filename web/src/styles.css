@@ -324,6 +324,16 @@ input {
   gap: 6px;
 }
 
+.social-links {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+.social-links a:hover {
+  color: var(--ink) !important;
+}
+
 .app-footer {
   display: flex;
   justify-content: space-between;
