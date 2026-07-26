@@ -52,27 +52,37 @@ export function WalletChip({
     case 'connected':
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="chip" style={{ padding: '8px 14px', fontSize: 12 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warn)' }} />
-            {shortAddr(wallet.account ?? '')}
-          </span>
+          {addressChip(wallet, 'var(--warn)')}
           {btn('Unlock private balance', () => void wallet.unlock())}
         </div>
       );
 
     case 'unlocked':
+      // Lock and disconnect are different things — locking forgets the derived
+      // keys but keeps the wallet attached — so they get one labelled control
+      // each rather than sharing a single unlabelled chip.
       return (
-        <button
-          onClick={wallet.lock}
-          className="chip"
-          title="Forget the derived keys on this device"
-          style={{ padding: '8px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
-        >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
-          {shortAddr(wallet.account ?? '')}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {addressChip(wallet, 'var(--accent)')}
+          {btn('Lock', wallet.lock)}
+        </div>
       );
   }
+}
+
+/** The address, and the only route to disconnecting. */
+function addressChip(wallet: ReturnType<typeof useWallet>, dot: string) {
+  return (
+    <button
+      onClick={() => void wallet.openAccount()}
+      className="chip"
+      title="Account — switch network or disconnect"
+      style={{ padding: '8px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot }} />
+      {shortAddr(wallet.account ?? '')}
+    </button>
+  );
 }
 
 /** Shown in place of the action panels until the user can actually act. */

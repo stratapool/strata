@@ -98,34 +98,26 @@ export function Landing() {
   return (
     <>
       {/* ---------- nav ---------- */}
-      <div
-        className="shell"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '30px 56px',
-        }}
-      >
+      <div className="shell landing-nav">
         <a href="#/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <Lockup size={32} />
         </a>
-        <div style={{ display: 'flex', gap: 38, fontSize: 13.5, color: 'var(--ink-70)' }}>
+        <div className="landing-nav-links">
           <a href="#how" style={{ textDecoration: 'none' }}>How it works</a>
           <a href="#fees" style={{ textDecoration: 'none' }}>Fees</a>
           <a href="#pool" style={{ textDecoration: 'none' }}>Pool</a>
           <a href="#docs" style={{ textDecoration: 'none' }}>Docs</a>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 26, fontSize: 13.5 }}>
+        <div className="landing-nav-actions">
           <a
             href={X_URL}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ textDecoration: 'none', color: 'var(--ink-70)' }}
+            style={{ textDecoration: 'none', color: 'var(--ink-70)', whiteSpace: 'nowrap' }}
           >
             @starccai
           </a>
-          <a href="#/app" style={{ textDecoration: 'none', fontWeight: 500 }}>
+          <a href="#/app" style={{ textDecoration: 'none', fontWeight: 500, whiteSpace: 'nowrap' }}>
             Connect wallet
           </a>
         </div>
@@ -134,8 +126,8 @@ export function Landing() {
       {/* ---------- hero ---------- */}
       <div
         ref={heroRef}
-        className="shell hero-grid"
-        style={{ position: 'relative', padding: '64px 56px 110px' }}
+        className="shell hero-grid band"
+        style={{ position: 'relative', '--pt': '64px', '--pb': '110px' } as React.CSSProperties}
       >
         <div>
           <div
@@ -159,12 +151,8 @@ export function Landing() {
             <span className="star" style={{ fontSize: 52, verticalAlign: '.12em' }}>✳</span>
           </h1>
           <div
-            style={{
-              animation: 'heroIn .9s cubic-bezier(.2,.7,.2,1) both .32s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 52,
-            }}
+            className="hero-cta"
+            style={{ animation: 'heroIn .9s cubic-bezier(.2,.7,.2,1) both .32s' }}
           >
             <div>
               <div className="display" style={{ fontWeight: 500, fontSize: 58, lineHeight: 1 }}>
@@ -312,7 +300,7 @@ export function Landing() {
       </div>
 
       {/* ---------- how ---------- */}
-      <div id="how" className="shell" style={{ padding: '130px 56px 120px' }}>
+      <div id="how" className="shell band" style={{ '--pt': '130px', '--pb': '120px' } as React.CSSProperties}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 74 }}>
           <h2 className="display h-section" style={{ margin: 0, fontWeight: 600 }}>
             Three steps to vanish <span className="star" style={{ fontSize: 32, verticalAlign: '.2em' }}>✳</span>
@@ -350,7 +338,7 @@ export function Landing() {
 
       {/* ---------- fees ---------- */}
       <div id="fees" style={{ borderTop: 'var(--rule)', background: 'var(--surface)' }}>
-        <div className="shell fee-grid" style={{ padding: '120px 56px' }}>
+        <div className="shell fee-grid band" style={{ '--pt': '120px', '--pb': '120px' } as React.CSSProperties}>
           <div>
             <span className="eyebrow" style={{ letterSpacing: '.28em' }}>The fee is the moat</span>
             <div className="display h-fee" style={{ marginTop: 20, fontWeight: 500, lineHeight: 0.95 }}>
@@ -397,7 +385,7 @@ export function Landing() {
 
       {/* ---------- pool stats ---------- */}
       <div id="pool" style={{ background: 'var(--ink)', color: 'var(--paper)' }}>
-        <div className="shell" style={{ padding: '110px 56px' }}>
+        <div className="shell band" style={{ '--pt': '110px', '--pb': '110px' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 70 }}>
             <h2 className="display h-section" style={{ margin: 0, fontWeight: 600 }}>
               The anonymity set only grows
@@ -447,7 +435,7 @@ export function Landing() {
       </div>
 
       {/* ---------- cta ---------- */}
-      <div className="shell" style={{ padding: '150px 56px 50px', textAlign: 'center' }}>
+      <div className="shell band" style={{ '--pt': '150px', '--pb': '50px', textAlign: 'center' } as React.CSSProperties}>
         <div className="display h-cta" style={{ fontWeight: 600, lineHeight: 1.15, marginBottom: 26 }}>
           Put it in.
           <br />

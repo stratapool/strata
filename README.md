@@ -43,17 +43,18 @@ on-chain from a real one. Phase 1 comes from the Perpetual Powers of Tau, where
 thousands of participants mean only one had to be honest. Phase 2 was run here
 by a single party.
 
-Worse, it was run with weak entropy: `Date.now() + Math.random()`. The
-timestamp is recoverable from the deployment block and V8's `Math.random` is
-not a CSPRNG. The script has since been fixed to use `crypto.randomBytes`, but
-**the key currently deployed was generated with the weaker source**. Any pool
-meant to hold other people's money needs a fresh, public, multi-party ceremony
-and a redeployment against its output.
+The contribution's entropy comes from `crypto.randomBytes(32)`. An earlier
+revision used `Date.now() + Math.random()` — a recoverable timestamp and a
+non-CSPRNG — and the first deployment shipped with a key generated that way.
+That key is gone; the pool below was deployed against a freshly generated one.
+Good entropy does not fix the underlying problem, though: a single-party phase 2
+rests entirely on that party having destroyed its secret, and nobody else can
+verify that. Any pool meant to hold other people's money needs a public,
+multi-party ceremony and a redeployment against its output.
 
 Until then, treat this as a demonstration.
 
-Both facts are stated in the interface as well. They are not going to be
-softened.
+This is stated in the interface as well. It is not going to be softened.
 
 ---
 
@@ -63,11 +64,11 @@ Robinhood Chain, chain ID **4663**.
 
 | Contract | Address |
 | --- | --- |
-| `PrivacyPool` | [`0x93e891eaD5cbDa33dd6074aC115E7D3b80FE0E33`](https://stratapool.xyz) |
-| `Groth16Verifier` | `0x937cD504717d07E3B2653695330785C8aE5B6045` |
-| MiMC hasher | `0xF176797B6D3Ce1B4C888EBa392b46cE900142b01` |
+| `PrivacyPool` | [`0x40aF9DE1EE5125772e4E3192fAf53B57f4d5A249`](https://stratapool.xyz) |
+| `Groth16Verifier` | `0xeDD96Fb3EA3451d653eb1ebaD350566A8f17DDe7` |
+| MiMC hasher | `0x4aEE710cc6d536f2064BD1Ca194B5BB0d54Ff97f` |
 
-Denomination **0.01 ETH**, merkle depth 20, deployed at block 19868453.
+Denomination **0.1 ETH**, merkle depth 20, deployed at block 19945005.
 
 Withdrawal fee is **0.3%**, split in the contract and unchangeable:
 
@@ -86,10 +87,10 @@ reproducible** — the phase-2 contribution used randomness, so re-running
 was generated from this exact file:
 
 ```
-withdraw_final.zkey        d2587049daa8a37668df27f86329f6a19eb2374f77e84ca28b4c1bb696b022d7
+withdraw_final.zkey        27fe02b1f69c167e2a21bc61f2b0dd9ce023e95e4d92ff0961112cbac7e40de6
 withdraw.wasm              df9bbcca32063c04f82c571238f4e9e6ef447674f1e4a4eb968b7e4c455af968
-verification_key.json      a2f0e54f30c9f41dd7a25f4f1606d3a2bb5a37f9ae83dd366dfb4a2ef4133e8c
-Verifier.sol               466a0dab2df04a0354b78501641ea55df633b1454de11a5b8c3c9cfc6021a648
+verification_key.json      2c719c1a35b8fb235c2192602a693175dfed659121c5a25cbf6045a1f769f007
+Verifier.sol               a33664b676ce5dc3316b44afd95f2a81e5e666e8e507912b321057535673b0d2
 circuits/withdraw.circom   b6f4e710c1b0ef65e72ef09986b8060922d0cbf532da82e344e0a597450ed514
 circuits/merkleTree.circom 1c2034409a2cc06f37d2b9286391bdc1ca7baef3a9d4cb154b4f9f0f8d59af47
 ```
@@ -98,9 +99,14 @@ Download the proving key from the site and check it against the hash above —
 that way you do not have to trust the host it came from:
 
 ```bash
-curl -sO https://stratapool.xyz/circuit/withdraw_final.zkey
-sha256sum withdraw_final.zkey
+curl -sO https://stratapool.xyz/circuit/withdraw_final.27fe02b1.zkey
+sha256sum withdraw_final.27fe02b1.zkey
 ```
+
+The filename carries the first 8 hex of that hash. It is served `immutable`
+with a one-year lifetime, so the name has to change whenever the bytes do —
+otherwise a returning visitor's browser keeps the retired key and every proof
+it produces is rejected on chain.
 
 ## The circuit
 

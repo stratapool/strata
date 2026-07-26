@@ -219,50 +219,57 @@ input {
 /* ---------------------------------------------------------------- layout --
    These exist as classes rather than inline styles for one reason: inline
    styles beat media queries, so anything that has to collapse on a narrow
-   screen cannot be declared inline. */
+   screen cannot be declared inline.
+
+   Every track is minmax(0, …) rather than a bare fr. An fr track floors at
+   min-width:auto, so it refuses to shrink below its content's min-content
+   width and grows past its container instead of wrapping. That is what broke
+   the deposit panel: the card measured 759px inside a 560px viewport and every
+   paragraph in it was clipped at the same x, which reads like a text-wrapping
+   bug and is not one. minmax(0, …) lets the track shrink and the text reflow. */
 
 .split {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 32px;
   align-items: start;
 }
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   gap: 40px;
   align-items: center;
 }
 .fee-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 80px;
   align-items: center;
 }
 .how-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-top: var(--rule);
 }
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 48px;
 }
 .pool-grid {
   display: grid;
-  grid-template-columns: 1.25fr 1fr;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
   gap: 56px;
 }
 .tier-row {
   display: grid;
-  grid-template-columns: 110px 1fr 1fr 1.4fr;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 14px;
   align-items: baseline;
 }
 .quad {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
 }
 
@@ -317,9 +324,90 @@ input {
   gap: 6px;
 }
 
+.app-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  border-top: var(--rule);
+  margin-top: 40px;
+  padding-top: 24px;
+  padding-bottom: 40px;
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  color: var(--ink-55);
+}
+
+.card-hero {
+  border: var(--rule);
+  background: var(--surface);
+  padding: 36px;
+  box-shadow: var(--hard-shadow);
+}
+
+/* The landing nav. Declared here rather than inline on the element: it has to
+   collapse on a narrow screen, and an inline padding would outrank every media
+   query below. Doubled selector so its padding beats `.shell` regardless of
+   which rule the cascade reaches last. */
+.shell.landing-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 30px 56px;
+}
+.landing-nav-links {
+  display: flex;
+  gap: 38px;
+  font-size: 13.5px;
+  color: var(--ink-70);
+}
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  font-size: 13.5px;
+}
+
+/* Landing sections. The vertical rhythm differs per section and arrives as
+   --pt/--pb; horizontal padding is left to `.shell` so it still responds to the
+   media queries. Writing the shorthand inline instead — as these sections used
+   to — pinned them to 56px a side, which on a 390px screen leaves 278px of
+   usable width. */
+.shell.band {
+  padding-top: var(--pt, 110px);
+  padding-bottom: var(--pb, 110px);
+}
+
+/* The hero's fee figure, primary button and secondary link. Without wrapping,
+   the link is squeezed to a 37px column and still overflows the viewport. */
+.hero-cta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 52px;
+}
+
 @media (max-width: 960px) {
   .shell {
     padding: 0 24px;
+  }
+  .shell.landing-nav {
+    padding: 22px 24px;
+  }
+  .landing-nav-links {
+    gap: 22px;
+    font-size: 13px;
+  }
+  .landing-nav-actions {
+    gap: 18px;
+  }
+  .shell.band {
+    padding-top: calc(var(--pt, 110px) * 0.62);
+    padding-bottom: calc(var(--pb, 110px) * 0.62);
+  }
+  .hero-cta {
+    gap: 30px;
   }
   .dotfield {
     height: 260px;
@@ -357,14 +445,14 @@ input {
   .hero-grid,
   .fee-grid,
   .pool-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 26px;
   }
   .how-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .stats-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 30px;
   }
   /* The hero illustration is decoration built from absolutely-positioned
@@ -379,13 +467,46 @@ input {
   }
 }
 
+/* Four section anchors plus two actions will not share one row below this.
+   The anchors go rather than the actions: they only jump within a page the
+   user can already scroll, and every destination is linked from the footer. */
+@media (max-width: 820px) {
+  .landing-nav-links {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .stats-grid,
   .quad {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell.landing-nav {
+    padding: 18px;
+  }
+  .landing-nav-actions {
+    gap: 14px;
+    font-size: 12.5px;
+  }
+  .shell.band {
+    padding-top: calc(var(--pt, 110px) * 0.45);
+    padding-bottom: calc(var(--pb, 110px) * 0.45);
+  }
+  .hero-cta {
+    gap: 22px;
+  }
+  /* Three tracking-heavy labels do not fit one phone row. The chain is already
+     stated on the Pool tab, so it is the one that goes; the source links stay,
+     because they are the only ones that do anything. */
+  .app-footer-chain {
+    display: none;
+  }
+  .app-footer {
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
   }
   .tier-row {
-    grid-template-columns: 64px 1fr auto;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
     gap: 10px;
   }
   /* Fourth column (status) wraps under on phones. */
@@ -418,12 +539,10 @@ input {
   background: var(--surface);
   padding: 26px;
 }
-.card-hero {
-  border: var(--rule);
-  background: var(--surface);
-  padding: 36px;
-  box-shadow: var(--hard-shadow);
-}
+/* .card-hero is declared up with the layout classes, above the media queries.
+   Leaving it here meant the `padding: 24px; box-shadow: none` override under
+   max-width:960px was silently dead — equal specificity, and the base rule came
+   later in the file, so it won at every width. */
 
 .btn {
   display: flex;

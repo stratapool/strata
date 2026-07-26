@@ -13,6 +13,7 @@ import type { PoolClient, PoolState } from '../lib/types';
 import type { useWallet } from '../lib/useWallet';
 
 const GITHUB_URL = 'https://github.com/stratapool/strata';
+const X_URL = 'https://x.com/starccai';
 
 type Wallet = ReturnType<typeof useWallet>;
 
@@ -117,7 +118,33 @@ export function PoolApp() {
         ))}
       {/* Pool stats are public data — no wallet needed to look at the set. */}
       {tab === 'pool' && <PoolStats state={state} />}
+
+      <AppFooter />
     </>
+  );
+}
+
+/**
+ * The app runs as its own route, so a visitor who lands here from a shared
+ * link never passes the landing page and its footer. Without this there is no
+ * route to the source from inside the product — and "read the code before
+ * depositing" is not advice you can give while hiding the link.
+ */
+function AppFooter() {
+  const link = { color: 'var(--ink-55)', textDecoration: 'none' } as const;
+  return (
+    <div className="shell app-footer">
+      <span>STRATA · PRIVACY POOL</span>
+      <span className="app-footer-chain">ROBINHOOD CHAIN 4663 · ETH</span>
+      <span style={{ display: 'flex', gap: 20 }}>
+        <a href={X_URL} target="_blank" rel="noopener noreferrer" style={link}>
+          X
+        </a>
+        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" style={link}>
+          GITHUB
+        </a>
+      </span>
+    </div>
   );
 }
 
@@ -276,7 +303,7 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
             <input className="amount-input" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
             <span style={{ fontSize: 17, color: 'var(--ink-55)' }}>ETH</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, margin: '16px 0 30px' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '16px 0 30px' }}>
             {/* Multiples of this pool's actual note size, not fixed amounts —
                 a "1 ETH" shortcut on a 0.01 pool means 100 separate deposits. */}
             {[1, 5, 10, 25].map((n) => {

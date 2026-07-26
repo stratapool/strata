@@ -75,6 +75,22 @@ export function useWallet(expectedChainId: number) {
     }
   }, [open]);
 
+  /**
+   * AppKit's account view — address, network, and the disconnect button.
+   *
+   * Until this was wired up there was no way to disconnect at all: the address
+   * was rendered as inert text, and the only clickable control dropped the
+   * derived keys while leaving the wallet attached.
+   */
+  const openAccount = useCallback(async () => {
+    setError(null);
+    try {
+      await open({ view: 'Account' });
+    } catch (e) {
+      setError((e as Error).message ?? 'could not open account');
+    }
+  }, [open]);
+
   /** Second step: the signature that unlocks the private balance. */
   const unlock = useCallback(async () => {
     if (!walletProvider || !account) return;
@@ -112,6 +128,7 @@ export function useWallet(expectedChainId: number) {
     busy,
     provider: walletProvider ?? null,
     connect,
+    openAccount,
     unlock,
     lock,
     switchChain,

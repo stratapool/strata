@@ -41,3 +41,6 @@ assets/fonts/
 plans/
 docs/
 contracts/deployments/e2e-keys-*.json
+
+# TypeScript incremental build cache.
+web/tsconfig.tsbuildinfo
