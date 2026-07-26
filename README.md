@@ -12,7 +12,8 @@ without revealing which one.
 
 ## What review this code has had
 
-**No third-party audit.** What has been done instead:
+**No completed audit — one is being arranged.** Until it lands, this is what
+review the code has actually had:
 
 - The circuit is **Tornado Cash v1's, unchanged** — the most-audited ZK circuit
   in production, reviewed multiple times over several years. The only edits are
