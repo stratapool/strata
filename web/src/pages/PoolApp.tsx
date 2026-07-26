@@ -174,8 +174,9 @@ function RiskNote() {
         color: 'var(--ink-70)',
       }}
     >
-      Unaudited. The contract cannot be paused or upgraded, and nothing limits
-      what a bug could take.{' '}
+      No third-party audit. The circuit is Tornado Cash v1's, unchanged, and
+      passes static analysis — but the contract cannot be paused or upgraded,
+      and nothing limits what a bug could take.{' '}
       <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
         Read the code
       </a>{' '}

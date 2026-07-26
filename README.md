@@ -10,12 +10,31 @@ without revealing which one.
 
 ---
 
-## Read this before depositing
+## What review this code has had
 
-**This code is unaudited.** The contracts cannot be paused or upgraded, there
-is no cap on what the pool can hold, and no owner who could intervene. If the
-circuit is wrong, an attacker can forge proofs and take everything, and a
-forged proof is indistinguishable on-chain from a real one.
+**No third-party audit.** What has been done instead:
+
+- The circuit is **Tornado Cash v1's, unchanged** — the most-audited ZK circuit
+  in production, reviewed multiple times over several years. The only edits are
+  the circom 1 → 2 syntax migration. Hashes below let you check that claim.
+- **circomspect** (Trail of Bits' static analyser) reports no errors. Its three
+  warnings are about `recipientSquare` / `feeSquare` / `relayerSquare` each
+  appearing in a single constraint — which is deliberate; those signals exist
+  only to bind the public inputs into the proof.
+- **13 tests** covering deposit, proof generation, on-chain verification,
+  double-spend rejection, and the recipient-tampering attack that a missing
+  constraint would enable.
+- An end-to-end run against the live pool: five deposits, five withdrawals to
+  fresh addresses, one rejected double-spend. See `scripts/e2e-live.mjs`.
+
+None of that is an audit. A linter cannot tell you whether a circuit computes
+the right thing, and the people who wrote the code are the worst people to
+review it. Treat the above as the floor, not the ceiling.
+
+The contracts also cannot be paused or upgraded, there is no cap on what the
+pool can hold, and no owner who could intervene. If the circuit is wrong, an
+attacker can forge proofs and take everything — and a forged proof is
+indistinguishable on-chain from a real one.
 
 **The phase-2 trusted setup has not yet been run publicly.** Groth16's
 parameters derive from a secret that must be destroyed; whoever can reconstruct
