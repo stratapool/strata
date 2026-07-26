@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePool } from '../lib/usePool';
+import { chainConfig, usePool } from '../lib/usePool';
 import { Lockup } from '../components/Logo';
 import { SocialLinks, X_URL, GITHUB_URL } from '../components/Social';
 import { count, eth, ethAuto } from '../lib/format';
@@ -425,6 +425,27 @@ export function Landing() {
         </div>
       </div>
 
+      {/* ---------- docs ---------- */}
+      {/* The nav has always linked here; until now there was no #docs to land
+          on. What belongs at that anchor on a privacy tool is not a feature
+          tour — it is everything a visitor needs to check the deployment
+          without believing a word of the rest of the page. */}
+      <div id="docs" className="shell band" style={{ '--pt': '120px', '--pb': '110px' } as React.CSSProperties}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+          <h2 className="display h-section" style={{ margin: 0, fontWeight: 600 }}>
+            Check it yourself <span className="star" style={{ fontSize: 30, verticalAlign: '.2em' }}>✳</span>
+          </h2>
+          <span className="eyebrow" style={{ letterSpacing: '.28em' }}>Docs</span>
+        </div>
+        <p style={{ margin: '0 0 44px', fontSize: 15, lineHeight: 1.8, color: 'var(--ink-70)', maxWidth: 620 }}>
+          Every claim on this page is checkable from a terminal. Nothing below
+          asks you to trust the host it came from — the proving key is verified
+          against a hash published in the repository, and the contracts hold no
+          owner, no upgrade path and no pause.
+        </p>
+        <DocsFacts />
+      </div>
+
       {/* ---------- cta ---------- */}
       <div className="shell band" style={{ '--pt': '150px', '--pb': '50px', textAlign: 'center' } as React.CSSProperties}>
         <div className="display h-cta" style={{ fontWeight: 600, lineHeight: 1.15, marginBottom: 26 }}>
@@ -452,5 +473,93 @@ export function Landing() {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * The deployment, as facts a reader can act on.
+ *
+ * Read from the same config the client itself uses rather than written down:
+ * this page has already shipped a pool address once that a redeployment left
+ * stale, and a documentation page that quietly lies about which contract holds
+ * the money is worse than no page.
+ */
+function DocsFacts() {
+  const cfg = chainConfig();
+  const zkeyName = (cfg?.proverAssets.zkey ?? '').split('/').pop() ?? '';
+  // withdraw_final.<sha8>.zkey — the name is the first 8 hex of its SHA-256,
+  // which is what makes the check below self-maintaining across a key change.
+  const zkeySha8 = /\.([0-9a-f]{8})\.zkey$/.exec(zkeyName)?.[1] ?? null;
+
+  const rows: [string, string][] = [
+    ['Pool contract', cfg?.poolAddress ?? 'simulated — no contract'],
+    ['Chain', cfg ? `Robinhood Chain · ${cfg.chainId}` : '—'],
+    ['Circuit', "Tornado Cash v1's, unchanged but for circom 1 → 2 syntax"],
+    ['Proving key', zkeyName || '—'],
+    ['Trusted setup', 'phase 1 from the Perpetual Powers of Tau; phase 2 not yet public'],
+    ['Audit', 'none completed — one is being arranged'],
+  ];
+
+  return (
+    <div className="split">
+      <div>
+        {rows.map(([k, v]) => (
+          <div
+            key={k}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 20,
+              padding: '13px 0',
+              borderTop: '1px solid var(--ink-12)',
+              fontSize: 13,
+              lineHeight: 1.6,
+            }}
+          >
+            <span style={{ color: 'var(--ink-55)', flex: 'none' }}>{k}</span>
+            <span style={{ textAlign: 'right', wordBreak: 'break-all' }}>{v}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="card">
+        <div className="eyebrow" style={{ marginBottom: 14 }}>Verify the proving key</div>
+        <p style={{ margin: '0 0 16px', fontSize: 12.5, lineHeight: 1.75, color: 'var(--ink-70)' }}>
+          Your browser downloads this file to build a withdrawal proof. The
+          filename carries the first eight hex of its SHA-256, so a substituted
+          key fails the check below — you do not have to trust this server.
+        </p>
+        <pre
+          style={{
+            margin: 0,
+            padding: '12px 14px',
+            background: 'var(--paper)',
+            border: '1px solid var(--ink-12)',
+            fontSize: 11.5,
+            lineHeight: 1.7,
+            overflowX: 'auto',
+            fontFamily: 'var(--mono)',
+          }}
+        >
+{`curl -sO https://stratapool.xyz/circuit/${zkeyName}
+sha256sum ${zkeyName}`}
+        </pre>
+        {zkeySha8 && (
+          <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ink-55)', lineHeight: 1.7 }}>
+            It must begin <b className="tabular" style={{ color: 'var(--ink)' }}>{zkeySha8}</b>. The
+            full hash is in the README, next to the hashes of the circuit and
+            the generated verifier.
+          </div>
+        )}
+        <a
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: 'inline-block', marginTop: 18, fontSize: 13, fontWeight: 500 }}
+        >
+          Read the source →
+        </a>
+      </div>
+    </div>
   );
 }
