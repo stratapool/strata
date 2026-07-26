@@ -64,11 +64,18 @@ Robinhood Chain, chain ID **4663**.
 
 | Contract | Address |
 | --- | --- |
-| `PrivacyPool` | [`0x40aF9DE1EE5125772e4E3192fAf53B57f4d5A249`](https://stratapool.xyz) |
+| `PrivacyPool` | [`0x5f7317Fd48737E3462B308b64CbA3e557e68B240`](https://stratapool.xyz) |
 | `Groth16Verifier` | `0xeDD96Fb3EA3451d653eb1ebaD350566A8f17DDe7` |
 | MiMC hasher | `0x4aEE710cc6d536f2064BD1Ca194B5BB0d54Ff97f` |
 
-Denomination **0.1 ETH**, merkle depth 20, deployed at block 19945005.
+Denomination **0.01 ETH**, merkle depth 20, deployed at block 19974239.
+
+The denomination is a constructor argument and cannot be changed — the
+commitment is `Pedersen(nullifier, secret)` and carries no amount, so a pool
+that could change its denomination would pay out whatever the current value is
+regardless of what was deposited. Other sizes are separate contracts. The
+verifier and hasher above are shared with them: both are functions of the
+circuit, not of the denomination.
 
 Withdrawal fee is **0.3%**, split in the contract and unchangeable:
 

@@ -7,6 +7,19 @@
  *   DEPLOYER_KEY   private key with enough ETH for gas (~0.0005 ETH)
  *   DENOMINATION   note size in ETH, default 0.1
  *
+ * Optional:
+ *   VERIFIER_ADDRESS, HASHER_ADDRESS
+ *     Reuse an already-deployed verifier and hasher instead of deploying new
+ *     ones. Both are denomination-independent — the verifier is a function of
+ *     the circuit and its proving key, the hasher of nothing at all — so a pure
+ *     denomination change has no reason to redeploy them. They are ~4M of the
+ *     5M gas this script otherwise spends.
+ *
+ *     Only pass VERIFIER_ADDRESS when the deployed verifier was generated from
+ *     the current build/verification_key.json. Pairing a pool with a verifier
+ *     from a different ceremony rejects every honest proof, and the pool has no
+ *     owner who could point it somewhere else afterwards.
+ *
  *   npx hardhat run scripts/deploy.mjs --network robinhood
  */
 import hre from 'hardhat';
@@ -33,23 +46,49 @@ async function main() {
 
   if (balance === 0n) throw new Error('deployer has no ETH');
 
-  console.log('· deploying MiMC hasher…');
-  const Hasher = new ethers.ContractFactory(
-    mimcSpongecontract.abi,
-    mimcSpongecontract.createCode('mimcsponge', 220),
-    deployer,
-  );
-  const hasher = await Hasher.deploy();
-  await hasher.waitForDeployment();
-  const hasherAddr = await hasher.getAddress();
-  console.log(`  ${hasherAddr}`);
+  const reuseHasher = process.env.HASHER_ADDRESS;
+  const reuseVerifier = process.env.VERIFIER_ADDRESS;
+  const deployed = [];
 
-  console.log('· deploying Groth16 verifier…');
-  const Verifier = await ethers.getContractFactory('Groth16Verifier');
-  const verifier = await Verifier.deploy();
-  await verifier.waitForDeployment();
-  const verifierAddr = await verifier.getAddress();
-  console.log(`  ${verifierAddr}`);
+  let hasherAddr;
+  if (reuseHasher) {
+    if ((await ethers.provider.getCode(reuseHasher)) === '0x')
+      throw new Error(`no contract at HASHER_ADDRESS ${reuseHasher}`);
+    hasherAddr = ethers.getAddress(reuseHasher);
+    console.log(`· reusing MiMC hasher  ${hasherAddr}`);
+  } else {
+    console.log('· deploying MiMC hasher…');
+    const Hasher = new ethers.ContractFactory(
+      mimcSpongecontract.abi,
+      mimcSpongecontract.createCode('mimcsponge', 220),
+      deployer,
+    );
+    const hasher = await Hasher.deploy();
+    await hasher.waitForDeployment();
+    hasherAddr = await hasher.getAddress();
+    deployed.push(hasher);
+    console.log(`  ${hasherAddr}`);
+  }
+
+  let verifierAddr;
+  if (reuseVerifier) {
+    if ((await ethers.provider.getCode(reuseVerifier)) === '0x')
+      throw new Error(`no contract at VERIFIER_ADDRESS ${reuseVerifier}`);
+    verifierAddr = ethers.getAddress(reuseVerifier);
+    console.log(`· reusing verifier     ${verifierAddr}`);
+    console.log('  ⚠ this must be the verifier generated from the current');
+    console.log('    build/verification_key.json. A verifier from a different');
+    console.log('    ceremony rejects every honest proof, and this pool will');
+    console.log('    have no owner who could repoint it.');
+  } else {
+    console.log('· deploying Groth16 verifier…');
+    const Verifier = await ethers.getContractFactory('Groth16Verifier');
+    const verifier = await Verifier.deploy();
+    await verifier.waitForDeployment();
+    verifierAddr = await verifier.getAddress();
+    deployed.push(verifier);
+    console.log(`  ${verifierAddr}`);
+  }
 
   console.log('· deploying PrivacyPool…');
   const Pool = await ethers.getContractFactory('PrivacyPool');
@@ -77,7 +116,7 @@ async function main() {
   // price bears no relation to Robinhood Chain's ~0.062 gwei, so the ETH
   // number from a dry run is meaningless for budgeting.
   const receipts = await Promise.all(
-    [hasher, verifier, pool].map((c) =>
+    [...deployed, pool].map((c) =>
       ethers.provider.getTransactionReceipt(c.deploymentTransaction().hash),
     ),
   );
