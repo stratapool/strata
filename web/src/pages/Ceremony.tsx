@@ -137,7 +137,6 @@ function Header({ status }: { status: CeremonyStatus | null }) {
 
 function Contribute({ status, onDone }: { status: CeremonyStatus | null; onDone: () => void }) {
   const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
   const [typed, setTyped] = useState('');
   const [phase, setPhase] = useState<Phase | null>(null);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
@@ -151,10 +150,7 @@ function Contribute({ status, onDone }: { status: CeremonyStatus | null; onDone:
     setFailure(null);
     setResult(null);
     try {
-      const slot = await claimSlot({
-        displayName: name.trim() || null,
-        address: address.trim() || null,
-      });
+      const slot = await claimSlot({ displayName: name.trim() || null });
       const out = await contribute({
         token: slot.token,
         name: name.trim() || 'anonymous',
@@ -206,9 +202,6 @@ function Contribute({ status, onDone }: { status: CeremonyStatus | null; onDone:
 
       <Field label="Name (optional)" hint="A label on the wall. Security comes from the hashes, not from names.">
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} maxLength={48} disabled={busy} placeholder="anonymous" />
-      </Field>
-      <Field label="Address (optional)" hint="Recorded for a future airdrop. Nothing is promised by recording it; leave it blank and you simply are not on that list.">
-        <input className="field" value={address} onChange={(e) => setAddress(e.target.value)} disabled={busy} placeholder="0x…" spellCheck={false} />
       </Field>
       <Field label="Type anything (optional)" hint="Mixed into your browser's randomness. Not needed, but it means you do not have to take our word for the entropy either.">
         <input className="field" value={typed} onChange={(e) => setTyped(e.target.value)} disabled={busy} placeholder="mash the keyboard" />
@@ -267,7 +260,6 @@ function Verify({
   onDone: () => void;
 }) {
   const [handle, setHandle] = useState('');
-  const [address, setAddress] = useState('');
   const [sent, setSent] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const latest = transcript?.contributions.at(-1)?.zkeySha256 ?? null;
@@ -276,7 +268,7 @@ function Verify({
     setFailure(null);
     try {
       if (!latest) throw new Error('nothing has been contributed yet');
-      await attest({ handle: handle.trim() || null, address: address.trim() || null, zkeySha256: latest });
+      await attest({ handle: handle.trim() || null, zkeySha256: latest });
       setSent(true);
       onDone();
     } catch (e) {
@@ -315,9 +307,6 @@ snarkjs zkey verify withdraw.r1cs pot16_final.ptau current.zkey`}
         <>
           <Field label="Handle (optional)" hint="">
             <input className="field" value={handle} onChange={(e) => setHandle(e.target.value)} maxLength={48} placeholder="anonymous" />
-          </Field>
-          <Field label="Address (optional)" hint="">
-            <input className="field" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="0x…" spellCheck={false} />
           </Field>
           <button className="btn-ghost" onClick={() => void send()} disabled={!latest} style={{ width: '100%' }}>
             I verified this key

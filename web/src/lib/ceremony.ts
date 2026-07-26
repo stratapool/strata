@@ -24,6 +24,7 @@ export interface ContributionRecord {
   name: string;
   hash: string;
   displayName: string | null;
+  /** Always null now. The coordinator still accepts it; the page stopped asking. */
   address: string | null;
   zkeySha256: string;
   at: string;
@@ -65,7 +66,7 @@ export interface Slot {
   contributionsBefore: number;
 }
 
-export const claimSlot = (meta: { displayName?: string | null; address?: string | null }) =>
+export const claimSlot = (meta: { displayName?: string | null }) =>
   json<Slot>('/slot', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -155,7 +156,7 @@ export async function contribute(opts: {
   return body as ContributeResult;
 }
 
-export const attest = (a: { handle?: string | null; address?: string | null; zkeySha256: string }) =>
+export const attest = (a: { handle?: string | null; zkeySha256: string }) =>
   json<{ recorded: boolean; contributions: number }>('/attest', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
