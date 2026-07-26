@@ -52,11 +52,14 @@ async function main(): Promise<void> {
     );
   }
 
-  if (cfg.MAX_GAS_FEE_RATIO > 1) {
+  // Above ~1.5 the bounded loss stops being bounded in any useful sense: at
+  // 2x the fee the hot wallet funds half of every withdrawal it relays.
+  if (cfg.MAX_GAS_FEE_RATIO > 1.5) {
     console.warn(
-      `\n⚠ MAX_GAS_FEE_RATIO=${cfg.MAX_GAS_FEE_RATIO} — gas may exceed the fee, so this` +
-        `\n  relayer will lose money on every withdrawal. Fine for a test pool;` +
-        `\n  it will drain the hot wallet on anything long-lived.`,
+      `\n⚠ MAX_GAS_FEE_RATIO=${cfg.MAX_GAS_FEE_RATIO} — this relayer will spend up to` +
+        `\n  ${cfg.MAX_GAS_FEE_RATIO}x the fee it earns on every withdrawal, so the hot wallet` +
+        `\n  drains rather than sustains itself. Fine while testing; not for a pool` +
+        `\n  meant to keep running unattended.`,
     );
   }
 

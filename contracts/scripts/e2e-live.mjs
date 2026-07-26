@@ -97,10 +97,14 @@ async function main() {
   }
 
   // ---------------------------------------------------------------- deposit
-  // Every key this run creates is written out before it is funded. An earlier
-  // version kept only the addresses, and the run's 0.05 ETH ended up in five
-  // wallets nobody could open — spent, not lost to a bug, but unrecoverable
-  // all the same.
+  // Every secret this run creates is written out before the value that depends
+  // on it moves — wallet keys before funding, note secrets before depositing.
+  //
+  // Both halves were learned the same way. First version kept only addresses,
+  // and 0.05 ETH ended in five wallets nobody could open. Second version added
+  // the wallets but not the note secrets, which seemed fine while deposit and
+  // withdrawal happened in one pass — until a run had every withdrawal rejected
+  // and exited holding the only copy of three notes' secrets in memory.
   const keyFile = path.join(HERE, '..', 'deployments', `e2e-keys-${net.chainId}.json`);
   const keys = [];
   const saveKeys = async () =>
@@ -120,6 +124,26 @@ async function main() {
       concat(leInt2Buff(nullifier, 31), leInt2Buff(secret, 31)),
     );
     const nullifierHash = pedersenHash(leInt2Buff(nullifier, 31));
+
+    // The note secrets go to disk before the deposit, for the same reason the
+    // wallet keys do — and this is the pair that actually controls the money.
+    //
+    // An earlier fix here saved only the wallets. That looked sufficient
+    // because the script deposits and withdraws in one pass, so the secrets
+    // never had to outlive the process. Then a run had every withdrawal
+    // rejected by the relayer, the process exited, and three notes' worth of
+    // ETH stayed in the pool with nothing left anywhere that could spend it.
+    // A note is unspendable without (nullifier, secret); holding the depositor's
+    // wallet key does not help, because the contract authorises on the proof.
+    keys.push({
+      role: 'note',
+      index: i,
+      nullifier: nullifier.toString(),
+      secret: secret.toString(),
+      commitment: ethers.toBeHex(commitment, 32),
+      nullifierHash: ethers.toBeHex(nullifierHash, 32),
+    });
+    await saveKeys();
 
     const dep = await pool
       .connect(w)
@@ -229,7 +253,9 @@ async function main() {
 
   rule();
   line(`Every key this run generated is in ${path.relative(process.cwd(), keyFile)}.`);
-  line('It is gitignored. Sweep the balances back out before deleting it, or');
+  line('It is gitignored, and it holds note secrets as well as wallet keys —');
+  line('anyone with those can spend the notes. Sweep the balances back out');
+  line('before deleting it, or');
   line('the funds sitting in those addresses become unreachable.');
 }
 

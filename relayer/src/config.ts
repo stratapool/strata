@@ -27,14 +27,19 @@ const schema = z.object({
    * chains have congestion pricing and a spike can invert that; without this
    * the relayer quietly subsidises every withdrawal until the wallet empties.
    *
-   * Values above 1 mean the relayer knowingly loses money on every relay.
-   * That is only ever sane for a small test pool: at the 0.01 minimum
-   * denomination the 0.2% fee is 0.00002 ETH, which is roughly the gas, so a
-   * ratio under 1 would reject every withdrawal and the pool would look
-   * broken. Allowed, but it drains the hot wallet — never ship it on a pool
-   * meant to keep running.
+   * Compared against the *expected* cost — baseFee + tip — not the ceiling the
+   * node quotes. Values above 1 mean the relayer accepts a bounded loss to stay
+   * available; below 1 it stops relaying before it stops profiting.
+   *
+   * 1.2 is the default because the margin at the 0.01 minimum denomination is
+   * real but thin: the 0.2% fee is 0.00002 ETH against roughly 0.0000173 of
+   * gas, so a ratio of exactly 1.0 leaves about 5% of slack and gas moves more
+   * than that. The alternative to a small bounded loss is a relayer that
+   * intermittently refuses, and a user who cannot withdraw through it has to
+   * self-submit from a funded address — which costs them the privacy of that
+   * withdrawal. That trade is worth a few wei.
    */
-  MAX_GAS_FEE_RATIO: z.coerce.number().positive().max(20).default(0.5),
+  MAX_GAS_FEE_RATIO: z.coerce.number().positive().max(20).default(1.2),
 
   /** Warn loudly below this balance; the float is meant to be self-sustaining. */
   MIN_BALANCE_ETH: z.coerce.number().nonnegative().default(0.002),

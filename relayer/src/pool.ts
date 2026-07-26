@@ -60,7 +60,9 @@ export class PoolClient {
    * Everything that can be checked without spending gas, checked before we do.
    * Order matters: cheapest and most likely to fail first.
    */
-  async preflight(req: WithdrawRequest): Promise<{ gasEstimate: bigint; gasCost: bigint; fee: bigint }> {
+  async preflight(
+    req: WithdrawRequest,
+  ): Promise<{ gasEstimate: bigint; expectedCost: bigint; worstCost: bigint; fee: bigint }> {
     if (req.relayer.toLowerCase() !== this.wallet.address.toLowerCase()) {
       throw new RelayRejected(
         'proof names a different relayer; submitting it would spend our gas to pay someone else',
@@ -103,26 +105,44 @@ export class PoolClient {
     }
 
     const feeData = await this.provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
-    // 20% headroom: the estimate is a floor, and Orbit congestion pricing can
-    // move between estimate and inclusion.
-    const gasCost = (gasEstimate * gasPrice * 120n) / 100n;
+
+    // "Will this pay for itself?" and "can the wallet cover it?" are different
+    // questions and need different prices.
+    //
+    // An EIP-1559 transaction settles at baseFee + tip. maxFeePerGas is the
+    // ceiling the node quotes — roughly baseFee * 2 — so that a spike between
+    // signing and inclusion cannot strand it. Using that ceiling to decide
+    // profitability, and then multiplying it by a further 1.2, overstated the
+    // cost by about 2.4x: at a 0.01 denomination it refused every withdrawal
+    // as loss-making while the real cost was 0.86 of the fee. The headroom was
+    // also double-counting — a price that might rise is exactly what the
+    // ceiling already models.
+    const expectedPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n;
+    const worstPrice = feeData.maxFeePerGas ?? expectedPrice;
+
+    // 10% on the estimate, not the price: estimateGas can undershoot when the
+    // tree's insert path touches a different number of zero-to-nonzero slots.
+    const expectedCost = (gasEstimate * expectedPrice * 110n) / 100n;
+    const worstCost = gasEstimate * worstPrice;
 
     const ceiling =
       (fee * BigInt(Math.round(this.cfg.MAX_GAS_FEE_RATIO * 10_000))) / 10_000n;
-    if (gasCost > ceiling) {
+    if (expectedCost > ceiling) {
       throw new RelayRejected(
-        `gas ${formatEther(gasCost)} ETH exceeds ${this.cfg.MAX_GAS_FEE_RATIO * 100}% of the ${formatEther(fee)} ETH fee; relaying now would lose money`,
+        `gas ${formatEther(expectedCost)} ETH exceeds ${this.cfg.MAX_GAS_FEE_RATIO * 100}% of the ${formatEther(fee)} ETH fee; relaying now would lose money`,
         503,
       );
     }
 
+    // Solvency is judged against the ceiling, because that is what the node may
+    // actually deduct. A wallet that can only cover the expected price gets its
+    // transaction stuck on the first spike.
     const balance = await this.balance();
-    if (balance < gasCost) {
+    if (balance < worstCost) {
       throw new RelayRejected('relayer hot wallet is out of gas', 503);
     }
 
-    return { gasEstimate, gasCost, fee };
+    return { gasEstimate, expectedCost, worstCost, fee };
   }
 
   async submit(req: WithdrawRequest, gasEstimate: bigint): Promise<RelayResult> {
