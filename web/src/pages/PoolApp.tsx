@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStrata } from '../lib/useStrata';
 import { useCountUp } from '../lib/useCountUp';
-import { count, denomLabel, eth, pct } from '../lib/format';
+import { count, denomLabel, eth, ethAuto, pct } from '../lib/format';
 import { DotField } from '../components/DotField';
 import { PrivacyScore } from '../components/PrivacyScore';
 import { Steps } from '../components/Steps';
@@ -72,7 +72,7 @@ export function PoolApp() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.25 }}>
               <span className="eyebrow" style={{ fontSize: 10, letterSpacing: '.18em' }}>Private balance</span>
               <span className="display tabular" style={{ fontWeight: 600, fontSize: 18 }}>
-                {ready ? `${eth(balance, 1)} ETH` : '—'}
+                {ready ? `${ethAuto(balance)} ETH` : '—'}
               </span>
             </div>
             <WalletChip wallet={wallet} live={live} />
@@ -337,7 +337,7 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
               <div style={{ fontSize: 12.5, lineHeight: 1.7, color: 'var(--alarm)', marginTop: 12, fontWeight: 500 }}>
                 {eth(split.remainder, 4)} ETH cannot be deposited — amounts must be
                 multiples of {denomLabel(openTier.value)} ETH. Only{' '}
-                {eth(split.coveredAmount, 1)} ETH will go in.
+                {ethAuto(split.coveredAmount)} ETH will go in.
               </div>
             ) : (
               <div style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--ink-55)', marginTop: 12 }}>
@@ -755,7 +755,7 @@ function Withdraw({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
             <span className="eyebrow">Amount</span>
-            <span className="eyebrow tabular" style={{ letterSpacing: '.08em' }}>Private balance {eth(balance, 1)} ETH</span>
+            <span className="eyebrow tabular" style={{ letterSpacing: '.08em' }}>Private balance {ethAuto(balance)} ETH</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, borderBottom: 'var(--rule)', padding: '8px 0 12px', marginBottom: 28 }}>
             <input className="amount-input" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
@@ -867,7 +867,7 @@ function PoolStats({ state }: { state: PoolState }) {
             {count(notesShown)}
           </div>
           <div className="tabular" style={{ marginTop: 10, fontSize: 13, color: 'var(--ink-55)' }}>
-            {eth(tvlShown, 1)} ETH in pool · {count(depositorsShown)} unique depositors
+            {ethAuto(tvlShown)} ETH in pool · {count(depositorsShown)} unique depositors
           </div>
         </div>
         <div
@@ -914,7 +914,7 @@ function PoolStats({ state }: { state: PoolState }) {
                 >
                   <span className="display" style={{ fontWeight: 500, fontSize: 24 }}>{denomLabel(t.value)}</span>
                   <span style={{ fontSize: 13.5 }}>{t.open ? `${count(t.unspentNotes)} unspent` : '—'}</span>
-                  <span style={{ fontSize: 13.5, textAlign: 'right' }}>{t.open ? `${eth(t.ethLocked, 1)} ETH` : '—'}</span>
+                  <span style={{ fontSize: 13.5, textAlign: 'right' }}>{t.open ? `${ethAuto(t.ethLocked)} ETH` : '—'}</span>
                   {/* "LOCKED" implied an on-chain threshold that unlocks.
                       There is none — each size is a separate deployment with
                       its own anonymity set, so these are labelled as what

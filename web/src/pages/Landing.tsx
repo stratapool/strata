@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePool } from '../lib/usePool';
 import { Lockup } from '../components/Logo';
 import { SocialLinks, X_URL, GITHUB_URL } from '../components/Social';
-import { count, eth } from '../lib/format';
+import { count, eth, ethAuto } from '../lib/format';
 
 /**
  * A different address on every load.
@@ -387,7 +387,7 @@ export function Landing() {
           </div>
           <div className="stats-grid">
             {[
-              [eth(state.totalEthInPool, 1), 'ETH in pool', false],
+              [ethAuto(state.totalEthInPool), 'ETH in pool', false],
               [count(state.totalUnspentNotes), 'unspent notes · anonymity set', true],
               [eth(state.reserveEth, 4), 'ETH in reserve · no withdrawal function', false],
               [count(state.uniqueDepositors), 'unique depositors', false],
