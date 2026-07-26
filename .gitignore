@@ -44,3 +44,9 @@ contracts/deployments/e2e-keys-*.json
 
 # TypeScript incremental build cache.
 web/tsconfig.tsbuildinfo
+
+# Ceremony working state: the live zkey, uploads in flight, and the transcript
+# the running service owns. The transcript is published over HTTP, not through
+# the repo.
+ceremony/data/
+ceremony/.env.test
