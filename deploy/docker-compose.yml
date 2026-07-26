@@ -1,0 +1,29 @@
+# Strata relayer. Deployed alongside the existing stack on the Lightsail box;
+# Caddy there already owns 80/443 and reverse-proxies /relayer/* to this.
+#
+#   docker compose -f deploy/docker-compose.yml up -d --build
+
+services:
+  relayer:
+    build:
+      context: ..
+      dockerfile: relayer/Dockerfile
+    restart: unless-stopped
+    env_file: ../relayer/.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8788
+      NODE_ENV: production
+      KEYSTORE_PATH: /run/secrets/relayer-keystore.json
+    volumes:
+      # Read-only, and outside the image: the keystore must never end up in a
+      # layer that could be pushed somewhere.
+      - ../secrets/relayer-keystore.json:/run/secrets/relayer-keystore.json:ro
+    expose:
+      - '8788'
+    networks:
+      - strata
+
+networks:
+  strata:
+    name: strata

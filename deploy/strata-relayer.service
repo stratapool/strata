@@ -1,0 +1,48 @@
+# systemd unit, for running the relayer without Docker.
+#
+#   sudo cp deploy/strata-relayer.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now strata-relayer
+
+[Unit]
+Description=Strata relayer — fronts gas for privacy pool withdrawals
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=strata
+Group=strata
+WorkingDirectory=/opt/strata/relayer
+EnvironmentFile=/opt/strata/relayer/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node dist/index.js
+
+Restart=always
+RestartSec=5
+# Withdrawals fail while this is down and users cannot tell why, so prefer a
+# service that keeps trying over one that gives up after a burst of restarts.
+StartLimitIntervalSec=0
+
+# The process holds a hot wallet key in memory. Give it as little reach as
+# the runtime allows.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+ReadWritePaths=/opt/strata/relayer
+
+# Never write request bodies to the journal: they contain recipient addresses.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=strata-relayer
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,32 @@
+{
+  "name": "strata-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Strata — fixed-denomination privacy pool on Robinhood Chain. Frontend.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@reown/appkit": "^1.8.23",
+    "@reown/appkit-adapter-ethers": "^1.8.23",
+    "@strata/shared": "file:../shared",
+    "buffer": "^6.0.3",
+    "ethers": "^6.17.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "snarkjs": "^0.7.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,43 @@
+# Site block for stratapool.xyz. Append to the Caddyfile already running on
+# the box (/opt/robinhood-bot/deploy/Caddyfile) — that Caddy owns 80/443.
+#
+# Cloudflare DNS must be grey-cloud (DNS only). Proxying puts a third party
+# in the path who would see every visitor's IP alongside their withdrawal
+# request — reconstructing exactly the link this protocol exists to break.
+
+stratapool.xyz, www.stratapool.xyz {
+  encode zstd gzip
+
+  # Same-origin on purpose. A relayer on its own hostname would receive the
+  # user's IP with each withdrawal as a separate, easily-correlated request.
+  handle_path /relayer/* {
+    reverse_proxy relayer:8788
+  }
+
+  handle {
+    root * /srv/strata
+    try_files {path} /index.html
+    file_server
+  }
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    # No referrer at all: a URL leaking to an external site would tell it a
+    # visitor was using a privacy pool.
+    Referrer-Policy "no-referrer"
+    X-Frame-Options "DENY"
+    -Server
+  }
+
+  # The proving key is ~20 MB, content-addressed by filename, and immutable.
+  @circuit path /circuit/*
+  header @circuit Cache-Control "public, max-age=31536000, immutable"
+
+  # No access log. This server sees which addresses withdraw and from where;
+  # writing that to disk creates the correlation records the protocol is
+  # supposed to make impossible.
+  log {
+    output discard
+  }
+}

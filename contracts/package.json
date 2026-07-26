@@ -1,0 +1,25 @@
+{
+  "name": "strata-contracts",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Strata privacy pool contracts. Merkle tree and verifier are Tornado v1, unchanged.",
+  "scripts": {
+    "gen:zeros": "node scripts/genZeros.mjs",
+    "build": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.1.2",
+    "@nomicfoundation/hardhat-ethers": "^3.1.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.1.0",
+    "chai": "^4.5.0",
+    "circomlibjs": "^0.1.7",
+    "ethers": "^6.17.0",
+    "hardhat": "^2.26.0",
+    "snarkjs": "^0.7.5"
+  },
+  "dependencies": {
+    "@strata/shared": "file:../shared"
+  }
+}

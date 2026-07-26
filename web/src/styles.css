@@ -1,0 +1,558 @@
+/* Strata design system — ported from the approved v2 mockup.
+   Neo-brutalist editorial: paper ground, hard 1.5px rules, offset shadows,
+   Playfair for display numerals, Space Grotesk for labels. */
+
+:root {
+  --paper: #efeeea;
+  --surface: #fdfdfc;
+  --ink: #111110;
+  --ink-70: rgba(17, 17, 16, 0.7);
+  --ink-55: rgba(17, 17, 16, 0.55);
+  --ink-45: rgba(17, 17, 16, 0.45);
+  --ink-25: rgba(17, 17, 16, 0.25);
+  --ink-12: rgba(17, 17, 16, 0.12);
+  --accent: #2fae8e;
+  --warn: #d98324;
+  --alarm: #c8422f;
+  --rule: 1.5px solid var(--ink);
+  --hard-shadow: 8px 8px 0 -1.5px var(--paper), 8px 8px 0 0 var(--ink);
+  --display: 'Playfair Display', Georgia, serif;
+  --mono: 'Space Grotesk', ui-monospace, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+
+input {
+  font-family: inherit;
+}
+
+::selection {
+  background: rgba(63, 217, 182, 0.4);
+}
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@keyframes starSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes heroIn {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes discFloat {
+  0%,
+  100% {
+    transform: rotate(-14deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-11deg) translateY(-14px);
+  }
+}
+@keyframes blobBreath {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.06) rotate(4deg);
+  }
+}
+@keyframes coneFloat {
+  0%,
+  100% {
+    transform: rotate(24deg) translateY(0);
+  }
+  50% {
+    transform: rotate(28deg) translateY(-9px);
+  }
+}
+@keyframes sheenSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- motion added in design v2 --- */
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes barGrow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes barLive {
+  from {
+    transform: scaleY(0.97);
+  }
+  to {
+    transform: scaleY(1.05);
+  }
+}
+@keyframes sweepIn {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes ringPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(47, 174, 142, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(47, 174, 142, 0);
+  }
+}
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sheenX {
+  from {
+    transform: translateX(-140%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Every animation here is decorative. Users who ask the OS to stop moving
+   things get a static page rather than a slightly calmer one. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.page-in {
+  animation: pageIn 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.star {
+  display: inline-block;
+  animation: starSpin 14s linear infinite;
+  color: var(--accent);
+}
+
+.shell {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 56px;
+}
+.shell-narrow {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 56px 56px 90px;
+}
+
+/* ---------------------------------------------------------------- layout --
+   These exist as classes rather than inline styles for one reason: inline
+   styles beat media queries, so anything that has to collapse on a narrow
+   screen cannot be declared inline. */
+
+.split {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+.fee-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+.how-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: var(--rule);
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 48px;
+}
+.pool-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 56px;
+}
+.tier-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 1fr 1.4fr;
+  gap: 14px;
+  align-items: baseline;
+}
+.quad {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Fluid display type. Fixed pixel headlines at 84px overflow a phone before
+   any grid has a chance to. */
+.h-hero {
+  font-size: clamp(38px, 8.6vw, 84px);
+}
+.h-section {
+  font-size: clamp(30px, 5.6vw, 56px);
+}
+.h-page {
+  font-size: clamp(32px, 7.4vw, 52px);
+}
+.h-fee {
+  font-size: clamp(88px, 20vw, 200px);
+}
+.h-stat {
+  font-size: clamp(38px, 8vw, 64px);
+}
+.h-pool {
+  font-size: clamp(44px, 11vw, 74px);
+}
+.h-cta {
+  font-size: clamp(34px, 8vw, 74px);
+}
+
+.dotfield {
+  height: 340px;
+}
+.dotfield-caption {
+  position: absolute;
+  left: 56px;
+  top: 44px;
+}
+.dotfield-live {
+  position: absolute;
+  right: 56px;
+  bottom: 28px;
+}
+
+/* The app's tab bar. On a phone the four tabs plus a wallet chip cannot sit
+   on one row, so the header stacks and the tabs scroll horizontally rather
+   than wrapping into an ambiguous two-row control. */
+.app-header {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+}
+.app-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 960px) {
+  .shell {
+    padding: 0 24px;
+  }
+  .dotfield {
+    height: 260px;
+  }
+  .dotfield-caption {
+    left: 24px;
+    top: 24px;
+  }
+  .dotfield-live {
+    right: 24px;
+    bottom: 16px;
+    font-size: 9.5px !important;
+  }
+  .app-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding-bottom: 10px;
+  }
+  .app-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .app-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .app-tabs button {
+    padding: 10px 16px !important;
+    white-space: nowrap;
+  }
+  .shell-narrow {
+    padding: 32px 24px 64px;
+  }
+  .split,
+  .hero-grid,
+  .fee-grid,
+  .pool-grid {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+  .how-grid {
+    grid-template-columns: 1fr;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+  }
+  /* The hero illustration is decoration built from absolutely-positioned
+     pieces sized for a 560px column; it cannot reflow, so it steps aside
+     rather than being squashed into something broken. */
+  .hero-art {
+    display: none;
+  }
+  .card-hero {
+    padding: 24px;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid,
+  .quad {
+    grid-template-columns: 1fr;
+  }
+  .tier-row {
+    grid-template-columns: 64px 1fr auto;
+    gap: 10px;
+  }
+  /* Fourth column (status) wraps under on phones. */
+  .tier-row > :nth-child(3) {
+    text-align: right;
+  }
+  .shell-narrow {
+    padding: 24px 18px 56px;
+  }
+  .shell {
+    padding: 0 18px;
+  }
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--ink-55);
+  text-transform: uppercase;
+}
+
+.display {
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  border: var(--rule);
+  background: var(--surface);
+  padding: 26px;
+}
+.card-hero {
+  border: var(--rule);
+  background: var(--surface);
+  padding: 36px;
+  box-shadow: var(--hard-shadow);
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 17px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 0;
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn:hover:not(:disabled) {
+  background: #2b2b28;
+}
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.btn-alarm {
+  background: var(--alarm);
+}
+.btn-alarm:hover:not(:disabled) {
+  background: #a8331f;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 19px 40px;
+  background: var(--paper);
+  border: var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 7px 7px 0 -1.5px var(--paper), 7px 7px 0 0 var(--ink);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.btn-ghost:hover {
+  transform: translate(3px, 3px);
+  box-shadow: 4px 4px 0 -1.5px var(--paper), 4px 4px 0 0 var(--ink);
+}
+
+.field {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--rule);
+  outline: none;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 17px;
+  padding: 10px 0;
+}
+.field:focus {
+  border-color: var(--accent);
+}
+
+.amount-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--ink);
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 56px;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  padding: 0;
+}
+
+.chip {
+  padding: 9px 16px;
+  border: 1.5px solid var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+}
+.chip-locked {
+  border-color: var(--ink-25);
+  background: transparent;
+  color: var(--ink-45);
+}
+
+.quick {
+  padding: 6px 14px;
+  border: 1px solid var(--ink-25);
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.quick:hover {
+  border-color: var(--ink);
+  background: var(--paper);
+}
+
+.hatch {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--surface) 0 8px,
+    #f4f3ef 8px 10px
+  );
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-banner {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-align: center;
+  padding: 9px 16px;
+  text-transform: uppercase;
+}

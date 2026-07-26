@@ -1,0 +1,15 @@
+{
+  "name": "@strata/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Note construction, merkle tree and proof encoding. One copy, used by contracts, relayer and web.",
+  "exports": {
+    "./note": { "types": "./note.d.ts", "default": "./note.mjs" },
+    "./proof": { "types": "./proof.d.ts", "default": "./proof.mjs" }
+  },
+  "dependencies": {
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.5"
+  }
+}

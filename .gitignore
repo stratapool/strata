@@ -1,0 +1,42 @@
+node_modules/
+dist/
+.env
+.env.local
+
+# Circuit build output. The proving key is ~20 MB and the ptau is larger; both
+# are reproducible from scripts/setup.mjs. The verification key and the
+# generated Verifier.sol are the artefacts that matter and they are committed.
+# The proving key is ~20 MB and is NOT reproducible — the phase-2
+# contribution used randomness, and the deployed verifier was generated from
+# that exact file. Its SHA-256 is recorded in the README so anyone can verify
+# the copy they downloaded, without the repo carrying the bytes.
+circuits/build/
+!circuits/build/verification_key.json
+web/public/circuit/
+
+# Hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
+# Deployment records are committed on purpose — the addresses of an immutable
+# contract are exactly the thing users need to verify.
+!contracts/deployments/
+
+*.log
+.DS_Store
+secrets/
+
+# Design-tool working files and downloaded fonts: large, regenerable, and not
+# source. The generator script that uses them is committed.
+Web3隐私池转账设计*
+assets/fonts/
+
+# Local editor/tooling config, not project source.
+.claude/
+
+# Internal working notes. The design document ships; task tracking, the
+# question list for the expert, and the copy-review checklists are process
+# artefacts written for one reader and phrased accordingly.
+plans/
+docs/
