@@ -17,9 +17,21 @@ is no cap on what the pool can hold, and no owner who could intervene. If the
 circuit is wrong, an attacker can forge proofs and take everything, and a
 forged proof is indistinguishable on-chain from a real one.
 
-**The phase-2 trusted setup has not yet been run publicly.** Whoever holds the
-toxic waste from the current ceremony could mint proofs out of nothing. Until a
-public ceremony replaces it, treat the pool as a demonstration.
+**The phase-2 trusted setup has not yet been run publicly.** Groth16's
+parameters derive from a secret that must be destroyed; whoever can reconstruct
+it can forge proofs and empty the pool, and a forged proof is indistinguishable
+on-chain from a real one. Phase 1 comes from the Perpetual Powers of Tau, where
+thousands of participants mean only one had to be honest. Phase 2 was run here
+by a single party.
+
+Worse, it was run with weak entropy: `Date.now() + Math.random()`. The
+timestamp is recoverable from the deployment block and V8's `Math.random` is
+not a CSPRNG. The script has since been fixed to use `crypto.randomBytes`, but
+**the key currently deployed was generated with the weaker source**. Any pool
+meant to hold other people's money needs a fresh, public, multi-party ceremony
+and a redeployment against its output.
+
+Until then, treat this as a demonstration.
 
 Both facts are stated in the interface as well. They are not going to be
 softened.

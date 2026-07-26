@@ -11,6 +11,7 @@
  * locally and throws it away unceremoniously; keys it produces are for local
  * testing ONLY and must never be deployed.
  */
+import { randomBytes } from 'node:crypto';
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
@@ -74,15 +75,28 @@ async function main() {
   console.log('· groth16 setup…');
   await snarkjs.zKey.newZKey(r1cs, PTAU, zkey0);
 
-  // A real launch replaces this with a public, multi-participant ceremony
-  // whose transcript is published. See docs/design/privacy-pool.md §4.3.
+  // Entropy for the contribution. Whoever can reconstruct this value can
+  // forge proofs for this circuit and empty the pool, and a forged proof is
+  // indistinguishable on-chain from a real one.
+  //
+  // An earlier revision used `Date.now() + Math.random()`. Both halves were
+  // wrong: the timestamp is recoverable from the deployment block, and V8's
+  // Math.random is xorshift128+, not a CSPRNG. Fixed here, but note that the
+  // key currently deployed was generated with that weaker source.
+  const entropy = DEV
+    ? 'insecure-dev-entropy'
+    : randomBytes(32).toString('hex');
+
+  // Still only one contributor. Good entropy does not fix that: the security
+  // of a single-party phase 2 rests entirely on that party having destroyed
+  // its secret, which nobody else can verify. A public ceremony replaces
+  // "trust me" with "trust that at least one of N was honest".
   console.log('· phase 2 contribution…');
-  await snarkjs.zKey.contribute(
-    zkey0,
-    zkeyFinal,
-    'strata-dev',
-    DEV ? 'insecure-dev-entropy' : String(Date.now()) + Math.random(),
-  );
+  if (!DEV) {
+    console.log('  ⚠ single contributor — not suitable for a pool holding');
+    console.log('    anyone else\'s funds. See README.');
+  }
+  await snarkjs.zKey.contribute(zkey0, zkeyFinal, 'strata-dev', entropy);
 
   console.log('· exporting verification key…');
   const vkey = await snarkjs.zKey.exportVerificationKey(zkeyFinal);
