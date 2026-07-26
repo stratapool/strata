@@ -104,6 +104,7 @@ export function Landing() {
           <a href="#how" style={{ textDecoration: 'none' }}>How it works</a>
           <a href="#fees" style={{ textDecoration: 'none' }}>Fees</a>
           <a href="#pool" style={{ textDecoration: 'none' }}>Pool</a>
+          <a href="#/ceremony" style={{ textDecoration: 'none' }}>Ceremony</a>
           <a href="#docs" style={{ textDecoration: 'none' }}>Docs</a>
         </div>
         <div className="landing-nav-actions">
@@ -496,7 +497,7 @@ function DocsFacts() {
     ['Chain', cfg ? `Robinhood Chain · ${cfg.chainId}` : '—'],
     ['Circuit', "Tornado Cash v1's, unchanged but for circom 1 → 2 syntax"],
     ['Proving key', zkeyName || '—'],
-    ['Trusted setup', 'phase 1 from the Perpetual Powers of Tau; phase 2 not yet public'],
+    ['Trusted setup', 'phase 1 from the Perpetual Powers of Tau; phase 2 is open — see Ceremony'],
     ['Audit', 'none completed — one is being arranged'],
   ];
 
@@ -551,14 +552,14 @@ sha256sum ${zkeyName}`}
             the generated verifier.
           </div>
         )}
-        <a
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: 'inline-block', marginTop: 18, fontSize: 13, fontWeight: 500 }}
-        >
-          Read the source →
-        </a>
+        <div style={{ display: 'flex', gap: 20, marginTop: 18, flexWrap: 'wrap' }}>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 500 }}>
+            Read the source →
+          </a>
+          <a href="#/ceremony" style={{ fontSize: 13, fontWeight: 500 }}>
+            Contribute to the ceremony →
+          </a>
+        </div>
       </div>
     </div>
   );

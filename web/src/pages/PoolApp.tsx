@@ -236,6 +236,22 @@ function readableError(e: unknown): string {
   if (/insufficient funds/i.test(raw)) {
     return 'Not enough ETH in this wallet to cover the deposit plus gas.';
   }
+
+  // A TypeError here is our bug, not a condition the user can act on, and the
+  // message alone ("Cannot read properties of undefined") names neither the
+  // call nor the file. Appending the throwing frame turns a screenshot into
+  // something diagnosable — the previous one cost an afternoon of reading code
+  // to guess at a line the browser already knew.
+  if (e instanceof TypeError || e instanceof ReferenceError) {
+    const frame = (e.stack ?? '')
+      .split('\n')
+      .slice(1)
+      .find((l) => /\S/.test(l))
+      ?.trim()
+      .slice(0, 120);
+    return frame ? `${raw} — at ${frame}` : raw;
+  }
+
   return raw.length > 200 ? raw.slice(0, 200) + '…' : raw;
 }
 

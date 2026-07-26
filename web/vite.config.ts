@@ -19,10 +19,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // Sourcemaps were adding 20 MB to a deploy. The source is public on
-    // GitHub anyway, so shipping maps buys nothing and costs bandwidth on a
-    // page users are asked to load before trusting it.
-    sourcemap: false,
+    // Sourcemaps were dropped to save ~20 MB, on the reasoning that the source
+    // is public anyway so the maps buy nothing. That was wrong in one
+    // direction: without them a production error reads "Cannot read properties
+    // of undefined (reading 'call')" at a minified frame, and the only way to
+    // find it is to guess at code the browser could have named exactly. On a
+    // site whose largest asset is a 20 MB proving key, the bandwidth is not
+    // the expensive part — the afternoon is.
+    sourcemap: true,
     chunkSizeWarningLimit: 700,
   },
 });
