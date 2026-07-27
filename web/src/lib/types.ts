@@ -139,6 +139,28 @@ export interface WithdrawRequest {
   amount: number;
 }
 
+/**
+ * What actually happened, for the panel to report.
+ *
+ * Both calls used to return void, so a success was indistinguishable from a
+ * no-op: the button went back to its resting label and nothing said the money
+ * had moved. A failure got a red box; a success got silence.
+ */
+export interface DepositReceipt {
+  notes: number;
+  amount: number;
+  /** One per note — deposits are deliberately not batched. */
+  hashes: string[];
+}
+
+export interface WithdrawReceipt {
+  notes: number;
+  recipient: string;
+  /** After the relayer's cut, i.e. what lands at the recipient. */
+  received: number;
+  hashes: string[];
+}
+
 export interface FeeBreakdown {
   gross: number;
   relayerFee: number;
@@ -165,8 +187,8 @@ export interface PoolClient {
    */
   assessPrivacy(): PrivacyAssessment;
   estimateDepositGas(noteCount: number): number;
-  deposit(req: DepositRequest, onStep: (i: number) => void): Promise<void>;
-  withdraw(req: WithdrawRequest, onStep: (i: number) => void): Promise<void>;
+  deposit(req: DepositRequest, onStep: (i: number) => void): Promise<DepositReceipt>;
+  withdraw(req: WithdrawRequest, onStep: (i: number) => void): Promise<WithdrawReceipt>;
 
   /**
    * Serialised notes, for handing to someone else.

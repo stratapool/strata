@@ -13,6 +13,7 @@ import {
   FEE,
   type DenomTier,
   type Denomination,
+  type DepositReceipt,
   type DepositRequest,
   type FeeBreakdown,
   type Note,
@@ -20,6 +21,7 @@ import {
   type PoolState,
   type PrivacyAssessment,
   type Split,
+  type WithdrawReceipt,
   type WithdrawRequest,
 } from './types';
 
@@ -421,7 +423,7 @@ export class ChainPool implements PoolClient {
     return Number((0.000058 * Math.max(1, noteCount)).toFixed(6));
   }
 
-  async deposit(req: DepositRequest, onStep: (i: number) => void): Promise<void> {
+  async deposit(req: DepositRequest, onStep: (i: number) => void): Promise<DepositReceipt> {
     if (!this.#wallet || !this.#account) throw new Error('wallet not connected');
     if (!this.#seed) throw new Error('note keys not derived');
 
@@ -454,18 +456,21 @@ export class ChainPool implements PoolClient {
     // One transaction per note. Batching them would be cheaper but would also
     // publish "these N commitments arrived together", which is exactly the
     // link the split is meant to break.
+    const hashes: string[] = [];
     for (const commitment of commitments) {
       const tx = await writable.deposit!(toHex32(commitment), {
         value: this.#denomination,
       });
       await tx.wait();
+      hashes.push(tx.hash);
     }
 
     onStep(3);
     await this.refresh();
+    return { notes: split.totalNotes, amount: split.coveredAmount, hashes };
   }
 
-  async withdraw(req: WithdrawRequest, onStep: (i: number) => void): Promise<void> {
+  async withdraw(req: WithdrawRequest, onStep: (i: number) => void): Promise<WithdrawReceipt> {
     if (!this.#seed) throw new Error('note keys not derived');
 
     const { crypto, MerkleTree, leInt2Buff } = await import('@strata/shared/note');
@@ -491,6 +496,7 @@ export class ChainPool implements PoolClient {
 
     // One note at a time. Each is a separate proof and a separate transaction;
     // submitting them together would tie them to each other on-chain.
+    const hashes: string[] = [];
     for (const [n, note] of spendable.entries()) {
       const held = this.#secrets.get(note.id);
       if (!held) throw new Error(`no secrets held for ${note.id}`);
@@ -528,12 +534,20 @@ export class ChainPool implements PoolClient {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `relayer rejected note ${n + 1} of ${count}`);
       }
+      const { txHash } = await res.json().catch(() => ({ txHash: undefined }));
+      if (txHash) hashes.push(txHash);
 
       onStep(2);
     }
 
     onStep(3);
     await this.refresh();
+    return {
+      notes: count,
+      recipient: req.recipient,
+      received: this.quoteWithdrawal(req.amount).net,
+      hashes,
+    };
   }
 
   /** Exposed so the UI can pre-download the proving key while the user reads. */

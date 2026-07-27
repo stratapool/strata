@@ -11,7 +11,7 @@ import { SocialLinks, X_URL, GITHUB_URL } from '../components/Social';
 import { initAppKit } from '../config/appkit';
 import { isLive } from '../lib/usePool';
 import { noteVault } from '../lib/noteVault';
-import type { PoolClient, PoolState } from '../lib/types';
+import type { DepositReceipt, PoolClient, PoolState, WithdrawReceipt } from '../lib/types';
 import type { useWallet } from '../lib/useWallet';
 
 type Wallet = ReturnType<typeof useWallet>;
@@ -284,6 +284,59 @@ function readableError(e: unknown): string {
   return raw.length > 200 ? raw.slice(0, 200) + '…' : raw;
 }
 
+/**
+ * What happened, stated plainly, in the same slot the error box uses.
+ *
+ * Both panels used to report success by filling in a four-step checklist in a
+ * side column — below the fold on a phone — and returning the button to its
+ * resting label. Nothing said the money had moved. A user who had just signed a
+ * wallet prompt and watched the page go quiet could not distinguish a completed
+ * deposit from one that never fired, and the honest response to that is to
+ * check the explorer, which defeats the point of the panel.
+ */
+function Receipt({ lines, hashes }: { lines: string[]; hashes: string[] }) {
+  return (
+    <div
+      className="receipt"
+      style={{
+        border: '1.5px solid var(--accent)',
+        padding: '14px 16px',
+        marginBottom: 16,
+        fontSize: 12.5,
+        lineHeight: 1.75,
+      }}
+    >
+      <div className="eyebrow" style={{ color: 'var(--accent)', marginBottom: 8 }}>
+        Confirmed on chain
+      </div>
+      {lines.map((l) => (
+        <div key={l} style={{ color: 'var(--ink-70)' }}>
+          {l}
+        </div>
+      ))}
+      {hashes.length > 0 && (
+        <div
+          className="tabular"
+          style={{
+            marginTop: 10,
+            paddingTop: 10,
+            borderTop: 'var(--rule)',
+            fontSize: 11,
+            color: 'var(--ink-55)',
+            wordBreak: 'break-all',
+          }}
+        >
+          {/* One hash per note: deposits and withdrawals are deliberately not
+              batched, so a multi-note action really is several transactions. */}
+          {hashes.map((h) => (
+            <div key={h}>{h}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const DEPOSIT_STEPS = [
   'Derive private keys from wallet signature',
   'Generate commitments',
@@ -299,6 +352,7 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
   const [step, setStep] = useState(-1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<DepositReceipt | null>(null);
 
   const parsed = Number(amount) || 0;
   const split = pool.splitAmount(parsed);
@@ -310,8 +364,9 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
   const run = async () => {
     setBusy(true);
     setError(null);
+    setDone(null);
     try {
-      await pool.deposit({ amount: parsed }, setStep);
+      setDone(await pool.deposit({ amount: parsed }, setStep));
       setStep(DEPOSIT_STEPS.length);
     } catch (e) {
       setError(readableError(e));
@@ -344,7 +399,18 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
 
           <div className="eyebrow" style={{ marginBottom: 6 }}>Amount</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, borderBottom: 'var(--rule)', padding: '8px 0 12px' }}>
-            <input className="amount-input" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
+            {/* Clearing the receipt on edit: a confirmation left standing while
+                the amount changes underneath it describes a deposit that no
+                longer matches what the button is about to do. */}
+            <input
+              className="amount-input"
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                setDone(null);
+              }}
+              inputMode="decimal"
+            />
             <span style={{ fontSize: 17, color: 'var(--ink-55)' }}>ETH</span>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '16px 0 30px' }}>
@@ -353,7 +419,7 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
             {[1, 5, 10, 25].map((n) => {
               const v = Number(((openTier?.value ?? 0.1) * n).toFixed(6));
               return (
-                <button key={n} className="quick" onClick={() => setAmount(String(v))}>
+                <button key={n} className="quick" onClick={() => { setAmount(String(v)); setDone(null); }}>
                   {v} ETH
                 </button>
               );
@@ -408,6 +474,16 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
             >
               {error}
             </div>
+          )}
+
+          {done && (
+            <Receipt
+              lines={[
+                `${eth(done.amount, 4)} ETH is in the pool as ${count(done.notes)} note${done.notes === 1 ? '' : 's'}.`,
+                'The keys are derived from your wallet signature, so this note is recoverable on any device that can sign with the same wallet — there is nothing here to write down.',
+              ]}
+              hashes={done.hashes}
+            />
           )}
 
           <button className="btn" onClick={run} disabled={busy || split.totalNotes === 0}>
@@ -801,6 +877,7 @@ function Withdraw({
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<WithdrawReceipt | null>(null);
 
   const parsed = Number(amount) || 0;
   const quote = pool.quoteWithdrawal(parsed);
@@ -823,8 +900,9 @@ function Withdraw({
     setConfirming(false);
     setBusy(true);
     setError(null);
+    setDone(null);
     try {
-      await pool.withdraw({ recipient, amount: parsed }, setStep);
+      setDone(await pool.withdraw({ recipient, amount: parsed }, setStep));
       setStep(WITHDRAW_STEPS.length);
     } catch (e) {
       // Withdrawals fail for reasons the user can act on — the relayer being
@@ -846,7 +924,7 @@ function Withdraw({
           <input
             className="field"
             value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
+            onChange={(e) => { setRecipient(e.target.value); setDone(null); }}
             placeholder="0x… never used before"
             style={{ marginBottom: 34 }}
           />
@@ -856,7 +934,12 @@ function Withdraw({
             <span className="eyebrow tabular" style={{ letterSpacing: '.08em' }}>Private balance {ethAuto(balance)} ETH</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, borderBottom: 'var(--rule)', padding: '8px 0 12px', marginBottom: 28 }}>
-            <input className="amount-input" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
+            <input
+              className="amount-input"
+              value={amount}
+              onChange={(e) => { setAmount(e.target.value); setDone(null); }}
+              inputMode="decimal"
+            />
             <span style={{ fontSize: 17, color: 'var(--ink-55)' }}>ETH</span>
           </div>
 
@@ -906,6 +989,16 @@ function Withdraw({
               {assessment.headline}. Withdrawing now is close to publishing the link
               yourself. Press again to proceed anyway.
             </div>
+          )}
+
+          {done && (
+            <Receipt
+              lines={[
+                `${eth(done.received, 6)} ETH sent to ${done.recipient}.`,
+                `${count(done.notes)} note${done.notes === 1 ? '' : 's'} spent. Nothing on chain connects that address to the one that deposited.`,
+              ]}
+              hashes={done.hashes}
+            />
           )}
 
           <button

@@ -4,6 +4,7 @@ import {
   FEE,
   type DenomTier,
   type Denomination,
+  type DepositReceipt,
   type DepositRequest,
   type FeeBreakdown,
   type Note,
@@ -11,6 +12,7 @@ import {
   type PoolState,
   type PrivacyAssessment,
   type Split,
+  type WithdrawReceipt,
   type WithdrawRequest,
 } from './types';
 
@@ -264,7 +266,7 @@ export class MockPool implements PoolClient {
     return Number((0.000058 * Math.max(1, noteCount)).toFixed(6));
   }
 
-  async deposit(req: DepositRequest, onStep: (i: number) => void): Promise<void> {
+  async deposit(req: DepositRequest, onStep: (i: number) => void): Promise<DepositReceipt> {
     const split = this.splitAmount(req.amount);
     for (let i = 0; i < 4; i++) {
       onStep(i);
@@ -285,6 +287,10 @@ export class MockPool implements PoolClient {
       this.state.totalUnspentNotes + split.totalNotes,
     );
     this.emit();
+    // No hashes: the simulated pool never touched a chain, and inventing
+    // plausible ones would put strings in the confirmation panel that look
+    // exactly like something you could go and check.
+    return { notes: split.totalNotes, amount: split.coveredAmount, hashes: [] };
   }
 
   /**
@@ -328,7 +334,7 @@ export class MockPool implements PoolClient {
   async withdraw(
     req: WithdrawRequest,
     onStep: (i: number) => void,
-  ): Promise<void> {
+  ): Promise<WithdrawReceipt> {
     for (let i = 0; i < 4; i++) {
       onStep(i);
       await delay(900);
@@ -349,6 +355,12 @@ export class MockPool implements PoolClient {
       (this.state.reserveEth + (req.amount * FEE.RESERVE_BPS) / 10000).toFixed(5),
     );
     this.emit();
+    return {
+      notes: spent,
+      recipient: req.recipient,
+      received: this.quoteWithdrawal(req.amount).net,
+      hashes: [],
+    };
   }
 }
 
