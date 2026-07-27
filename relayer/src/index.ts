@@ -5,6 +5,7 @@ import { loadConfig } from './config.js';
 import { PoolClient } from './pool.js';
 import { SerialQueue } from './queue.js';
 import { createServer } from './server.js';
+import { LogIndex } from './logIndex.js';
 import { ProofVerifier } from './verify.js';
 import { loadWallet } from './wallet.js';
 
@@ -63,7 +64,25 @@ async function main(): Promise<void> {
     );
   }
 
-  const app = createServer(cfg, pool, verifier, new SerialQueue());
+  // Built here rather than lazily on first request so the cold scan happens
+  // once at boot, when nobody is waiting on it, instead of landing on whichever
+  // visitor happens to arrive first after a restart.
+  const indexContract = cfg.INDEX_RPC_URL
+    ? (pool.contract.connect(
+        new JsonRpcProvider(cfg.INDEX_RPC_URL, cfg.CHAIN_ID, { staticNetwork: true }),
+      ) as typeof pool.contract)
+    : pool.contract;
+  const logIndex = new LogIndex(indexContract, cfg.DEPLOY_BLOCK);
+  logIndex.refresh().then(
+    () => console.log(`log index ready from block ${cfg.DEPLOY_BLOCK}`),
+    (e: unknown) => console.error(`log index cold start failed: ${String(e)}`),
+  );
+  // Deposits are the only thing that moves the tree. A client that arrives
+  // between ticks still gets a correct answer — it reads the tail itself and
+  // verifies the whole set against the chain either way.
+  setInterval(() => void logIndex.refresh().catch(() => {}), 20_000);
+
+  const app = createServer(cfg, pool, verifier, new SerialQueue(), logIndex);
   app.listen(cfg.PORT, cfg.HOST, () => {
     console.log(`\nlistening on http://${cfg.HOST}:${cfg.PORT}`);
   });

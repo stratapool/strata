@@ -36,6 +36,11 @@ const POOL_ABI = [
   'function unspentNotes() external view returns (uint256)',
   'function reserve() external view returns (uint256)',
   'function nextIndex() external view returns (uint32)',
+  // Used to verify the relayer's log index. isKnownRoot rather than a
+  // getLastRoot comparison: the contract keeps 120 roots, so a deposit
+  // landing between the index's snapshot and this check does not fail an
+  // honest answer.
+  'function isKnownRoot(bytes32 _root) external view returns (bool)',
   'event Deposit(bytes32 indexed commitment, uint32 leafIndex, uint256 timestamp)',
   'event Withdrawal(address indexed to, bytes32 nullifierHash, address indexed relayer, uint256 relayerFee)',
 ];
@@ -201,8 +206,79 @@ export class ChainPool implements PoolClient {
     return `strata:log:${this.#cfg.chainId}:${this.#cfg.poolAddress.toLowerCase()}`;
   }
 
+  /**
+   * Takes the log from the relayer's index, but only if the chain agrees.
+   *
+   * The scan it replaces is ~36 queries against a node that errors on one in
+   * twelve, takes a quarter of a minute, and grows with the chain forever. All
+   * of it is the same public data for every visitor.
+   *
+   * The index is **not trusted**. Two checks, both against the contract:
+   *
+   *  - the deposit count must equal `nextIndex()`, and the leaf indices must
+   *    be exactly 0..n-1 with no gaps or repeats;
+   *  - a merkle root rebuilt locally from the commitments must satisfy
+   *    `isKnownRoot()`.
+   *
+   * The second is the load-bearing one. A root the contract recognises can
+   * only be produced by exactly the right leaves in exactly the right order,
+   * so a doctored, truncated or reordered response cannot pass — and
+   * `isKnownRoot` rather than `getLastRoot` because a deposit landing between
+   * the snapshot and the check would otherwise fail an honest index.
+   *
+   * Failure of any kind falls through to reading the chain directly. That path
+   * stays maintained precisely because this one can be taken away: the relayer
+   * can be down, wrong, or hostile, and the pool still works without it.
+   */
+  async #tryIndex(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.#cfg.relayerUrl}/log`);
+      if (!res.ok) return false;
+      const snap = (await res.json()) as {
+        head: number;
+        deposits: [number, string, number][];
+        spent: string[];
+      };
+      if (!Array.isArray(snap.deposits) || typeof snap.head !== 'number') return false;
+
+      const sorted = [...snap.deposits].sort((a, b) => a[0] - b[0]);
+      const onChainCount = Number(await this.#contract.nextIndex!());
+      if (sorted.length !== onChainCount) return false;
+      // Contiguous from zero. A tree built over a gap still has a root; it is
+      // simply not this pool's, and catching that here beats discovering it
+      // when a withdrawal proof is rejected.
+      if (sorted.some(([leaf], i) => leaf !== i)) return false;
+
+      const { crypto, MerkleTree } = await import('@strata/shared/note');
+      const { hashLeftRight } = await crypto();
+      const commitments = sorted.map(([, c]) => BigInt(c));
+      const root = new MerkleTree(20, hashLeftRight, commitments).root();
+      if (!(await this.#contract.isKnownRoot!(toHex32(root)))) return false;
+
+      for (const [leafIndex, commitment, timestamp] of sorted) {
+        this.#seenDeposits.set(leafIndex, {
+          commitment: BigInt(commitment),
+          leafIndex,
+          timestamp,
+        });
+      }
+      for (const n of snap.spent ?? []) this.#spent.add(String(n).toLowerCase());
+      this.#deposits = [...this.#seenDeposits.values()].sort(
+        (a, b) => a.leafIndex - b.leafIndex,
+      );
+      this.#scannedTo = snap.head;
+      this.#persist();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async start(): Promise<void> {
     this.#restore();
+    // Only worth asking when there is a cold scan to avoid. With a cache in
+    // hand the tail is a couple of queries and the index saves nothing.
+    if (this.#scannedTo === 0) await this.#tryIndex();
     // The interval is armed before the first read, not after it. It used to be
     // created on the line following `await this.refresh()`, so a single
     // transient RPC failure threw past it: no timer was ever set, the client

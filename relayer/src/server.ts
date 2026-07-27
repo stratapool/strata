@@ -7,12 +7,14 @@ import { PoolClient, RelayRejected } from './pool.js';
 import { SerialQueue } from './queue.js';
 import type { ProofVerifier } from './verify.js';
 import { withdrawRequestSchema } from './types.js';
+import type { LogIndex } from './logIndex.js';
 
 export function createServer(
   cfg: Config,
   pool: PoolClient,
   verifier: ProofVerifier,
   queue: SerialQueue,
+  logIndex?: LogIndex,
 ): Express {
   const app = express();
   // Behind Caddy. Without this every request carries the proxy's address, so
@@ -27,6 +29,31 @@ export function createServer(
   // The relayer is the only part of this system that sees who is withdrawing
   // to where. It should log as little as possible and never persist it.
   app.disable('x-powered-by');
+
+  /**
+   * The pool's public logs, so a client does not rebuild them from scratch.
+   *
+   * Nothing here is trusted: the client checks the deposit count against
+   * nextIndex() and rebuilds a merkle root from the commitments, which the
+   * contract must recognise via isKnownRoot(). A root the chain accepts can
+   * only come from exactly the right leaves in exactly the right order, so a
+   * doctored or truncated answer fails and the client reads the chain itself.
+   *
+   * 503 rather than an empty log while the first scan is still running. An
+   * empty deposit list is a valid-looking answer meaning "this pool has never
+   * been used", and a client would have to guess which it was holding.
+   */
+  app.get('/log', (_req: Request, res: Response) => {
+    if (!logIndex?.ready) {
+      res.status(503).json({ error: 'log index still building' });
+      return;
+    }
+    // Short and public. The bytes are identical for every caller and change
+    // only when a deposit lands, so a few seconds of shared caching costs
+    // nothing and absorbs a crowd arriving together.
+    res.set('Cache-Control', 'public, max-age=10');
+    res.json(logIndex.snapshot());
+  });
 
   app.get('/health', async (_req: Request, res: Response) => {
     try {

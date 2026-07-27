@@ -13,6 +13,9 @@ export const POOL_ABI = [
   'function reserve() external view returns (uint256)',
   'function nextIndex() external view returns (uint32)',
   'event Deposit(bytes32 indexed commitment, uint32 leafIndex, uint256 timestamp)',
+  // Needed by the log index. Undirected on purpose: it serves every burned
+  // nullifier, never an answer about one the caller named.
+  'event Withdrawal(address indexed to, bytes32 nullifierHash, address indexed relayer, uint256 relayerFee)',
 ];
 
 export class RelayRejected extends Error {

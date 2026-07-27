@@ -7,6 +7,16 @@ const schema = z.object({
   RPC_URL: z.string().url().default('https://rpc.mainnet.chain.robinhood.com'),
   CHAIN_ID: z.coerce.number().int().positive().default(4663),
   POOL_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  // Where the log index starts reading. Scanning from genesis would work and
+  // would also walk twenty million empty blocks on every cold start.
+  DEPLOY_BLOCK: z.coerce.number().int().nonnegative().default(0),
+  // The index reads logs; the relayer submits transactions. Different jobs
+  // with different limits, so they get separate endpoints and default to the
+  // same one. RPC_URL was on a plan capping eth_getLogs at ten blocks, which
+  // is fine for the relayer — it never calls it — and turns a cold index into
+  // fifteen thousand requests. Separating them also means a provider that is
+  // wrong for indexing cannot take withdrawals down with it.
+  INDEX_RPC_URL: z.string().url().optional(),
 
   /** Path to the circuit's verification_key.json. */
   VERIFICATION_KEY: z.string().default('../circuits/build/verification_key.json'),
