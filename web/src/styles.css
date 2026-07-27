@@ -706,3 +706,85 @@ input {
   padding: 9px 16px;
   text-transform: uppercase;
 }
+
+/* ---------------------------------------------------------------- receipt
+
+   The inline receipt states the outcome where the error box would be. The
+   modal exists because that was still missable: after a deposit the wallet
+   popup has just closed, focus is elsewhere, and on a phone the panel may not
+   even be the part of the page in view. A confirmation you have to go looking
+   for is the same failure as no confirmation.
+
+   Dismissing the modal leaves the inline receipt standing, so the transaction
+   hash is still there to copy once the interruption is out of the way. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(17, 17, 16, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.18s ease-out both;
+}
+
+.modal-card {
+  background: var(--paper);
+  border: var(--rule);
+  box-shadow: var(--hard-shadow);
+  max-width: 520px;
+  width: 100%;
+  padding: 30px 32px 26px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  animation: modalIn 0.24s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 560px) {
+  .modal-card { padding: 24px 20px 20px; }
+}
+
+/* The tick draws itself: ring first, then the stroke. A static tick that is
+   simply present reads as part of the layout — the eye skips it. The 400ms of
+   motion is what makes it register as "this just happened", which is the whole
+   job of the panel. */
+.tick-ring,
+.tick-path {
+  stroke: var(--accent);
+  fill: none;
+}
+
+.tick-ring {
+  stroke-width: 2.5;
+  stroke-dasharray: 151;
+  stroke-dashoffset: 151;
+  animation: tickDraw 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) 0.04s forwards;
+}
+
+.tick-path {
+  stroke-width: 3.5;
+  stroke-linecap: square;
+  stroke-dasharray: 36;
+  stroke-dashoffset: 36;
+  animation: tickDraw 0.26s cubic-bezier(0.4, 0, 0.3, 1) 0.4s forwards;
+}
+
+/* `forwards` matters beyond the animation itself: the reduced-motion rule above
+   collapses every duration to 0.001ms, and without a forwards fill the tick
+   would snap back to fully undrawn — an empty circle where the confirmation
+   should be. With it, a user who asked the OS to stop moving things gets the
+   finished tick immediately, which is the right outcome. */
+@keyframes tickDraw {
+  to { stroke-dashoffset: 0; }
+}

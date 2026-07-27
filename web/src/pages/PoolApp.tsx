@@ -337,6 +337,82 @@ function Receipt({ lines, hashes }: { lines: string[]; hashes: string[] }) {
   );
 }
 
+/**
+ * The same confirmation, in front of you rather than beside you.
+ *
+ * The inline receipt was still missable: the wallet popup has just closed,
+ * focus is somewhere else, and on a phone the panel may not be the part of the
+ * page in view. A confirmation you have to go looking for is the failure it was
+ * meant to fix. Dismissing this leaves the inline receipt in place, so the
+ * hash is still there to copy afterwards.
+ */
+function ReceiptModal({
+  title,
+  lines,
+  hashes,
+  onClose,
+}: {
+  title: string;
+  lines: string[];
+  hashes: string[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <svg viewBox="0 0 52 52" width="58" height="58" aria-hidden="true" style={{ marginBottom: 18 }}>
+          <circle className="tick-ring" cx="26" cy="26" r="24" />
+          <path className="tick-path" d="M14 27 L22.5 35 L38 18" />
+        </svg>
+        <div className="eyebrow" style={{ color: 'var(--accent)', marginBottom: 10 }}>
+          Confirmed on chain
+        </div>
+        <div style={{ fontSize: 22, lineHeight: 1.35, marginBottom: 16 }}>{title}</div>
+        {lines.map((l) => (
+          <div key={l} style={{ fontSize: 13, lineHeight: 1.75, color: 'var(--ink-70)', marginBottom: 8 }}>
+            {l}
+          </div>
+        ))}
+        {hashes.length > 0 && (
+          <div
+            className="tabular"
+            style={{
+              marginTop: 16,
+              paddingTop: 14,
+              borderTop: 'var(--rule)',
+              fontSize: 10.5,
+              color: 'var(--ink-55)',
+              wordBreak: 'break-all',
+              lineHeight: 1.6,
+            }}
+          >
+            {hashes.map((h) => (
+              <div key={h}>{h}</div>
+            ))}
+          </div>
+        )}
+        <button className="btn" style={{ marginTop: 22 }} onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const DEPOSIT_STEPS = [
   'Derive private keys from wallet signature',
   'Generate commitments',
@@ -353,6 +429,7 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<DepositReceipt | null>(null);
+  const [shout, setShout] = useState(false);
 
   const parsed = Number(amount) || 0;
   const split = pool.splitAmount(parsed);
@@ -367,6 +444,7 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
     setDone(null);
     try {
       setDone(await pool.deposit({ amount: parsed }, setStep));
+      setShout(true);
       setStep(DEPOSIT_STEPS.length);
     } catch (e) {
       setError(readableError(e));
@@ -378,6 +456,17 @@ function Deposit({ pool, state }: { pool: PoolClient; state: PoolState }) {
 
   return (
     <div className="shell-narrow page-in">
+      {shout && done && (
+        <ReceiptModal
+          title={`${eth(done.amount, 4)} ETH deposited`}
+          lines={[
+            `${count(done.notes)} note${done.notes === 1 ? '' : 's'} added to the anonymity set.`,
+            'Wait before withdrawing. Deposits that land while you wait sit behind yours and dilute the timing correlation.',
+          ]}
+          hashes={done.hashes}
+          onClose={() => setShout(false)}
+        />
+      )}
       <PageHead title="Deposit" meta="Deposit · no protocol fee" />
       <div className="split">
         <div className="card-hero">
@@ -878,6 +967,7 @@ function Withdraw({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<WithdrawReceipt | null>(null);
+  const [shout, setShout] = useState(false);
 
   const parsed = Number(amount) || 0;
   const quote = pool.quoteWithdrawal(parsed);
@@ -903,6 +993,7 @@ function Withdraw({
     setDone(null);
     try {
       setDone(await pool.withdraw({ recipient, amount: parsed }, setStep));
+      setShout(true);
       setStep(WITHDRAW_STEPS.length);
     } catch (e) {
       // Withdrawals fail for reasons the user can act on — the relayer being
@@ -917,6 +1008,17 @@ function Withdraw({
 
   return (
     <div className="shell-narrow page-in">
+      {shout && done && (
+        <ReceiptModal
+          title={`${eth(done.received, 6)} ETH withdrawn`}
+          lines={[
+            `Sent to ${done.recipient}.`,
+            `${count(done.notes)} note${done.notes === 1 ? '' : 's'} spent. Nothing on chain connects that address to the one that deposited.`,
+          ]}
+          hashes={done.hashes}
+          onClose={() => setShout(false)}
+        />
+      )}
       <PageHead title="Withdraw" meta="Withdraw · 0.3%" />
       <div className="split">
         <div className="card-hero">
