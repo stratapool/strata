@@ -1,12 +1,12 @@
 {
   "chainId": 4663,
-  "deployedAt": "2026-07-26T15:21:32.303Z",
+  "deployedAt": "2026-07-27T12:45:54.610Z",
   "denomination": "10000000000000000",
   "levels": 20,
   "contracts": {
-    "pool": "0x5f7317Fd48737E3462B308b64CbA3e557e68B240",
-    "verifier": "0xeDD96Fb3EA3451d653eb1ebaD350566A8f17DDe7",
+    "pool": "0x4daA62B28c4529479785892443E0a0DFe392f460",
+    "verifier": "0x57254c611587343958EAbB70993b85Bc7948524F",
     "hasher": "0x4aEE710cc6d536f2064BD1Ca194B5BB0d54Ff97f"
   },
-  "deployBlock": 19974239
+  "deployBlock": 20742508
 }
