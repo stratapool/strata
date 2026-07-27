@@ -245,28 +245,75 @@ export class ChainPool implements PoolClient {
     const SPAN = 10_000;
     const out: unknown[] = [];
 
-    // Halve on failure rather than picking one safe window. Measured against
-    // this RPC, spans of 9k and above fail roughly one time in five while 2k
-    // and below always succeed — but the boundary is the node's, not ours, and
-    // it moves. Splitting adapts to whatever it happens to be, and doubles as
-    // a retry when the failure was only the node having a bad moment.
-    const take = async (a: number, b: number, depth: number): Promise<void> => {
-      try {
-        out.push(
-          ...(await this.#contract.queryFilter(
-            filter as Parameters<Contract['queryFilter']>[0],
-            a,
-            b,
-          )),
-        );
-      } catch (e) {
-        // A single block that still fails is not a range problem, and halving
-        // it further would spin. Let it out so the caller keeps the old data
-        // instead of silently reporting a pool with fewer notes in it.
-        if (b - a < 32 || depth >= 10) throw e;
-        const mid = Math.floor((a + b) / 2);
-        await take(a, mid, depth + 1);
-        await take(mid + 1, b, depth + 1);
+    // Two different failures wear the same clothes here, and treating them
+    // alike is what took the site down twice.
+    //
+    // "Range too large" is fixed by asking for less. Rate limiting is made
+    // worse by it: halving a refused request issues two more, which is exactly
+    // what the endpoint was objecting to. The first version split on every
+    // error, so one 429 became two, then four, and the network panel filled
+    // with hundreds of requests for seventeen-block windows — an outage
+    // manufactured out of a speed limit.
+    //
+    // So: back off and retry the same range when told to slow down, and only
+    // narrow it when told it is too big.
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Every field ethers might have put the status in. It reports an HTTP 429
+    // as a SERVER_ERROR whose own message says "could not coalesce error",
+    // with the status buried in `info` — so matching on `message` alone reads
+    // a rate limit as a range problem, which is the mistake being fixed.
+    const isRateLimit = (e: unknown): boolean => {
+      const err = e as {
+        info?: { responseStatus?: string; responseBody?: string };
+        message?: string;
+        shortMessage?: string;
+        error?: { message?: string; code?: number };
+      };
+      const s = [
+        err?.info?.responseStatus,
+        err?.info?.responseBody,
+        err?.shortMessage,
+        err?.message,
+        err?.error?.message,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      return /\b429\b|too many requests|rate.?limit|throttl/i.test(s);
+    };
+
+    // Retry the same window; never widen the request count in response to a
+    // failure. Measured against this endpoint, a 10,000-block query succeeds
+    // eleven times in twelve and the failures are not size-related — 50k, 20k
+    // and 9k spans all fail at about the same rate, 2k and below at none of a
+    // small sample. They are the node having a bad second.
+    //
+    // Splitting was therefore the wrong medicine for the actual illness, and
+    // an actively dangerous one: each random hiccup became two requests, then
+    // four, and the burst tripped a rate limiter that answered 429, which the
+    // same code read as another reason to split. One flaky response
+    // manufactured hundreds of requests for seventeen-block windows and took
+    // the page down harder than the hiccup ever would have.
+    //
+    // A plain retry costs one extra request and cannot compound.
+    const take = async (a: number, b: number): Promise<void> => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          out.push(
+            ...(await this.#contract.queryFilter(
+              filter as Parameters<Contract['queryFilter']>[0],
+              a,
+              b,
+            )),
+          );
+          return;
+        } catch (e) {
+          if (attempt >= 5) throw e;
+          // Longer for an explicit rate limit than for a hiccup, and jittered
+          // so that several tabs backing off do not resynchronise into the
+          // burst they are backing off from.
+          const base = isRateLimit(e) ? 900 : 300;
+          await sleep(base * 2 ** attempt + Math.random() * 250);
+        }
       }
     };
 
@@ -277,7 +324,7 @@ export class ChainPool implements PoolClient {
     // the requests are the thing being paid for. The cold load is fixed by not
     // repeating it (see #restore) rather than by issuing it faster.
     for (let start = from; start <= to; start += SPAN) {
-      await take(start, Math.min(start + SPAN - 1, to), 0);
+      await take(start, Math.min(start + SPAN - 1, to));
     }
     return out as { args: Record<string, unknown> }[];
   }
