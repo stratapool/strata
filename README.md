@@ -22,10 +22,17 @@ review the code has actually had:
   warnings are about `recipientSquare` / `feeSquare` / `relayerSquare` each
   appearing in a single constraint — which is deliberate; those signals exist
   only to bind the public inputs into the proof.
-- **39 tests** across the three packages: 19 on the contracts, covering
-  deposit, proof generation, on-chain verification, double-spend rejection, the
+- **54 tests** across four packages: 22 on the contracts, covering deposit,
+  proof generation, on-chain verification, double-spend rejection, the
   recipient-tampering attack a missing constraint would enable, and frozen
-  vectors for note-key derivation; 14 in the client; 6 on the relayer.
+  vectors for note-key derivation; 20 in the client; 6 on the relayer; 6 on the
+  ceremony coordinator, where the case that matters is an upload that would
+  erase a contributor.
+- **Four independent adversarial audits**, one per subsystem, told not to
+  believe the comments. They found a cross-pool proof replay, a client that
+  disclosed its own note set to the RPC provider, a way for one contributor to
+  wedge the ceremony permanently, and three comments asserting properties the
+  code did not have. All fixed; the comments are corrected in place.
 - An end-to-end run against the live pool: deposits, withdrawals to fresh
   addresses, a rejected double-spend. See `scripts/e2e-live.mjs`.
 - The browser client exercised against the deployed pool — scanning, note
@@ -41,24 +48,51 @@ pool can hold, and no owner who could intervene. If the circuit is wrong, an
 attacker can forge proofs and take everything — and a forged proof is
 indistinguishable on-chain from a real one.
 
-**The deployed key still comes from a single-party phase 2.** Groth16's
-parameters derive from a secret that must be destroyed; whoever can reconstruct
-it can forge proofs and empty the pool, and a forged proof is indistinguishable
-on-chain from a real one. Phase 1 comes from the Perpetual Powers of Tau, where
-thousands of participants mean only one had to be honest. Phase 2 was run here
-by one party, and one party's word is the whole of its security.
+**The phase-2 ceremony is complete.** Groth16's parameters derive from a secret
+that must be destroyed; whoever can reconstruct it can forge proofs and empty
+the pool, and a forged proof is indistinguishable on-chain from a real one.
+Phase 1 comes from the Perpetual Powers of Tau, where thousands of participants
+mean only one had to be honest. Phase 2 is now the same shape, at a much
+smaller scale: **six contributions**, each generating randomness in the
+contributor's own browser and discarding it, closed with a publicly verifiable
+beacon.
 
-**A public ceremony is now open at [stratapool.xyz/#/ceremony](https://stratapool.xyz/#/ceremony).**
-It runs in the browser — a 20 MB download, two seconds of computation, an
-upload — and closes with drand round 6362166, announced in advance so the
-beacon cannot be shopped for. When it finishes, the verifier and the pool are
-redeployed against its output and this paragraph gets rewritten.
+**So long as any one of those six destroyed their randomness, nobody can forge
+a proof — including us.** That is the whole of the guarantee, and it replaces
+the previous one, which was that we said so.
 
-Until that happens the pool below is backed by the single-party key, and the
-count on the ceremony page is only meaningful if its contributors are different
-people: contributions are anonymous, so nothing there proves they are.
+Two things it does not establish, and nobody should read into it:
 
-Until then, treat this as a demonstration.
+- **Contributions are anonymous.** Six entries mean six independent parties
+  only if they were six different people, and nothing on the ceremony page or
+  in the transcript proves that. Anyone able to run six browsers could have
+  produced all of them, in which case the guarantee is worth what one
+  contribution is worth.
+- **Verification is not contribution.** Two verifiers independently confirmed
+  the chain is intact. That establishes the transcript has not been tampered
+  with and says nothing whatever about whether anyone destroyed a secret.
+
+The closing beacon is drand round **6324172**, announced before its value
+existed so it could not be selected for. The window was shortened from a
+previously announced round once contributions were judged sufficient; both
+rounds were in the future when named, which is the only property that matters,
+but the change is recorded here rather than left for someone to notice.
+
+Reproduce the deployed key yourself — the ceremony still serves the contributed
+key it closed on:
+
+```bash
+curl -so contributed.zkey https://stratapool.xyz/ceremony/zkey
+sha256sum contributed.zkey            # 5e3ae46747228c39dd3e8221a41c78bedf8eb17e7966f60d63a7ec0bbe669524
+
+curl -s https://api.drand.sh/public/6324172   # randomness a0e170779fea...
+snarkjs zkey beacon contributed.zkey final.zkey   drand-6324172   a0e170779fea33571e3bf27ed13b118581604948f04eb1bdc0a9eacf0cbb5b42 10
+sha256sum final.zkey                  # must match the manifest below
+```
+
+The full transcript, including every contribution hash, is at
+[stratapool.xyz/ceremony](https://stratapool.xyz/#/ceremony) and served as JSON
+from `/ceremony/transcript`.
 
 This is stated in the interface as well. It is not going to be softened.
 
@@ -70,11 +104,13 @@ Robinhood Chain, chain ID **4663**.
 
 | Contract | Address |
 | --- | --- |
-| `PrivacyPool` | [`0x5f7317Fd48737E3462B308b64CbA3e557e68B240`](https://stratapool.xyz) |
-| `Groth16Verifier` | `0xeDD96Fb3EA3451d653eb1ebaD350566A8f17DDe7` |
+| `PrivacyPool` | [`0x4daA62B28c4529479785892443E0a0DFe392f460`](https://stratapool.xyz) |
+| `Groth16Verifier` | `0x57254c611587343958EAbB70993b85Bc7948524F` |
 | MiMC hasher | `0x4aEE710cc6d536f2064BD1Ca194B5BB0d54Ff97f` |
 
-Denomination **0.01 ETH**, merkle depth 20, deployed at block 19974239.
+Denomination **0.01 ETH**, merkle depth 20, deployed at block 20742508 —
+against the ceremony's output, replacing an earlier deployment that ran on a
+single-party key.
 
 The denomination is a constructor argument and cannot be changed — the
 commitment is `Pedersen(nullifier, secret)` and carries no amount, so a pool
@@ -94,16 +130,16 @@ Withdrawal fee is **0.3%**, split in the contract and unchangeable:
 
 ## Verifying the deployment
 
-The proving key is ~20 MB and is not in this repository. It is also **not
-reproducible** — the phase-2 contribution used randomness, so re-running
-`circuits/scripts/setup.mjs` produces a different key. The deployed verifier
-was generated from this exact file:
+The proving key is ~20 MB and is not in this repository. It **is** reproducible
+now, which it was not before: the ceremony's contributed key plus the announced
+drand beacon give exactly the file below, and the commands for that are in the
+trusted-setup section above. The deployed verifier was generated from it:
 
 ```
-withdraw_final.zkey        27fe02b1f69c167e2a21bc61f2b0dd9ce023e95e4d92ff0961112cbac7e40de6
+withdraw_final.zkey        f2239587640574f7910630d2d4fb817a1b42e6d0b1afc674c688aab43858f753
 withdraw.wasm              df9bbcca32063c04f82c571238f4e9e6ef447674f1e4a4eb968b7e4c455af968
-verification_key.json      2c719c1a35b8fb235c2192602a693175dfed659121c5a25cbf6045a1f769f007
-Verifier.sol               a33664b676ce5dc3316b44afd95f2a81e5e666e8e507912b321057535673b0d2
+verification_key.json      ccbbc843203c22552b3ac0ea2477c7b807124fc67b44a8c412e8cffc461d8d5e
+Verifier.sol               790008aa741353707a65cd32f2f02e11a259abd0f6878473abd07cea0efa7313
 circuits/withdraw.circom   b6f4e710c1b0ef65e72ef09986b8060922d0cbf532da82e344e0a597450ed514
 circuits/merkleTree.circom 1c2034409a2cc06f37d2b9286391bdc1ca7baef3a9d4cb154b4f9f0f8d59af47
 ```
@@ -112,8 +148,8 @@ Download the proving key from the site and check it against the hash above —
 that way you do not have to trust the host it came from:
 
 ```bash
-curl -sO https://stratapool.xyz/circuit/withdraw_final.27fe02b1.zkey
-sha256sum withdraw_final.27fe02b1.zkey
+curl -sO https://stratapool.xyz/circuit/withdraw_final.f2239587.zkey
+sha256sum withdraw_final.f2239587.zkey
 ```
 
 The verification key is served too, so a proof can be checked without trusting
