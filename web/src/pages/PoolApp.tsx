@@ -374,9 +374,10 @@ function ReceiptModal({
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
-        <svg viewBox="0 0 52 52" width="58" height="58" aria-hidden="true" style={{ marginBottom: 18 }}>
-          <circle className="tick-ring" cx="26" cy="26" r="24" />
-          <path className="tick-path" d="M14 27 L22.5 35 L38 18" />
+        <svg viewBox="0 0 96 96" width="92" height="92" aria-hidden="true" style={{ marginBottom: 16, display: 'block' }}>
+          <circle className="tick-wave" cx="48" cy="48" r="30" />
+          <circle className="tick-disc" cx="48" cy="48" r="30" />
+          <path className="tick-path" d="M32 49 L43 60 L65 36" />
         </svg>
         <div className="eyebrow" style={{ color: 'var(--accent)', marginBottom: 10 }}>
           Confirmed on chain
