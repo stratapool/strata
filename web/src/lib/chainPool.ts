@@ -105,6 +105,26 @@ export class ChainPool implements PoolClient {
   #secrets = new Map<string, { nullifier: bigint; secret: bigint }>();
   /** Next unused derivation index; imported notes do not consume one. */
   #nextDerivedIndex = 0;
+  /**
+   * Derivation index -> the expensive half of scanning it.
+   *
+   * The scan re-derived every index from zero on each 15-second poll: three
+   * keccaks and two Pedersen hashes per index, and Pedersen over bn254 in JS
+   * costs ~12ms each. For a wallet holding 97 notes that is 117 indices and
+   * about 2.7 seconds of synchronous main-thread work, repeating forever —
+   * which is why tabs needed several clicks after connecting a wallet. The
+   * clicks were not being missed; the thread was busy hashing.
+   *
+   * Index i under a fixed seed always yields the same values, so this is
+   * computed once. What still runs every poll is the part that can change: a
+   * Map lookup against the deposits and a Set lookup for spent-ness, both
+   * free. Cleared whenever the seed changes — a stale entry here would report
+   * the previous wallet's notes as the new wallet's.
+   */
+  #derived = new Map<
+    number,
+    { nullifier: bigint; secret: bigint; commitment: bigint; nullifierHash: bigint }
+  >();
   #denomination = 0n;
   #poll: ReturnType<typeof setInterval> | null = null;
 
@@ -133,6 +153,10 @@ export class ChainPool implements PoolClient {
    * still being scanned alongside the new wallet's balance query.
    */
   setSeed(seed: string | null): void {
+    // Any change, not just locking. Switching from one wallet to another keeps
+    // a non-null seed, and leaving the derivation cache in place across that
+    // would attribute the previous wallet's notes to the new one.
+    if (seed !== this.#seed) this.#derived.clear();
     this.#seed = seed;
     if (seed === null) {
       this.#notes = [];
@@ -512,19 +536,17 @@ export class ChainPool implements PoolClient {
     const secrets = new Map<string, { nullifier: bigint; secret: bigint }>();
     const denomination = Number(this.#denomination) / 1e18;
 
-    // Synchronous now, and that is the point: there is no per-note request
-    // left to make.
-    const consider = (
+    // No request per note; that was the earlier fix and it stands. What this
+    // does now is also not re-hash per note per poll — see #derived.
+    const match = (
       id: string,
       nullifier: bigint,
       secret: bigint,
+      commitment: bigint,
+      nullifierHash: bigint,
     ): boolean => {
-      const commitment = pedersenHash(
-        concat(leInt2Buff(nullifier, 31), leInt2Buff(secret, 31)),
-      );
       const record = byCommitment.get(commitment);
       if (!record) return false;
-      const nullifierHash = pedersenHash(leInt2Buff(nullifier, 31));
       const spent = this.#spent.has(toHex32(nullifierHash).toLowerCase());
       secrets.set(id, { nullifier, secret });
       found.push({
@@ -537,6 +559,24 @@ export class ChainPool implements PoolClient {
       return true;
     };
 
+    /** Hashes only what has never been hashed before. */
+    const at = (i: number) => {
+      let d = this.#derived.get(i);
+      if (!d) {
+        const { nullifier, secret } = deriveNoteSecrets(this.#seed!, this.#cfg.poolAddress, i);
+        d = {
+          nullifier,
+          secret,
+          commitment: pedersenHash(
+            concat(leInt2Buff(nullifier, 31), leInt2Buff(secret, 31)),
+          ),
+          nullifierHash: pedersenHash(leInt2Buff(nullifier, 31)),
+        };
+        this.#derived.set(i, d);
+      }
+      return d;
+    };
+
     if (this.#seed) {
       // Walk indices until a run of misses; deposits are made sequentially,
       // so a gap this long means we are past the end.
@@ -544,8 +584,15 @@ export class ChainPool implements PoolClient {
       let misses = 0;
       let highest = -1;
       for (let i = 0; misses < GAP_LIMIT; i++) {
-        const { nullifier, secret } = deriveNoteSecrets(this.#seed, this.#cfg.poolAddress, i);
-        if (consider(`note-${i}`, nullifier, secret)) {
+        // Yielding during the first walk only — once cached, the whole loop is
+        // Map lookups and never gets near a frame budget. Without this the
+        // very first scan after unlocking still froze the page for seconds,
+        // which is the moment the user is most likely to be clicking.
+        if (i > 0 && i % 8 === 0 && !this.#derived.has(i)) {
+          await new Promise((r) => setTimeout(r, 0));
+        }
+        const d = at(i);
+        if (match(`note-${i}`, d.nullifier, d.secret, d.commitment, d.nullifierHash)) {
           misses = 0;
           highest = i;
         } else {
@@ -561,10 +608,14 @@ export class ChainPool implements PoolClient {
     }
 
     for (const entry of noteVault.all()) {
-      consider(
+      const nullifier = BigInt(entry.nullifier);
+      const secret = BigInt(entry.secret);
+      match(
         `imported-${entry.nullifier.slice(0, 12)}`,
-        BigInt(entry.nullifier),
-        BigInt(entry.secret),
+        nullifier,
+        secret,
+        pedersenHash(concat(leInt2Buff(nullifier, 31), leInt2Buff(secret, 31))),
+        pedersenHash(leInt2Buff(nullifier, 31)),
       );
     }
 
