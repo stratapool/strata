@@ -136,7 +136,73 @@ export class ChainPool implements PoolClient {
     }
   }
 
+  /**
+   * Reloads a previous scan so a cold load is paid for once, not every visit.
+   *
+   * Walking 151k blocks takes ~26 seconds against this RPC and gets slower with
+   * the chain. Caching it turns every later visit into a read of the new tail.
+   *
+   * What is stored is the public deposit log and the public nullifier log —
+   * the same bytes anyone can pull from the chain, revealing nothing about
+   * which of them are the visitor's. The note secrets are not here and never
+   * touch storage; they are re-derived from the wallet signature each session.
+   * A tampered or truncated cache cannot cost anything either: commitments are
+   * matched against derived ones, and a wrong tree produces proofs the
+   * contract rejects rather than funds it releases.
+   */
+  #restore(): void {
+    try {
+      const raw = localStorage.getItem(this.#cacheKey());
+      if (!raw) return;
+      const v = JSON.parse(raw) as {
+        scannedTo: number;
+        deposits: [number, string, number][];
+        spent: string[];
+      };
+      if (typeof v.scannedTo !== 'number' || !Array.isArray(v.deposits)) return;
+      for (const [leafIndex, commitment, timestamp] of v.deposits) {
+        this.#seenDeposits.set(leafIndex, {
+          commitment: BigInt(commitment),
+          leafIndex,
+          timestamp,
+        });
+      }
+      for (const n of v.spent ?? []) this.#spent.add(n);
+      this.#deposits = [...this.#seenDeposits.values()].sort(
+        (a, b) => a.leafIndex - b.leafIndex,
+      );
+      this.#scannedTo = v.scannedTo;
+    } catch {
+      // Corrupt or unavailable storage costs a slow load, nothing more.
+    }
+  }
+
+  #persist(): void {
+    try {
+      localStorage.setItem(
+        this.#cacheKey(),
+        JSON.stringify({
+          scannedTo: this.#scannedTo,
+          deposits: [...this.#seenDeposits.values()].map((d) => [
+            d.leafIndex,
+            `0x${d.commitment.toString(16)}`,
+            d.timestamp,
+          ]),
+          spent: [...this.#spent],
+        }),
+      );
+    } catch {
+      // Quota, private browsing, disabled storage — all just mean a slow load.
+    }
+  }
+
+  /** Keyed by pool and chain so a redeployment never reads the old pool's log. */
+  #cacheKey(): string {
+    return `strata:log:${this.#cfg.chainId}:${this.#cfg.poolAddress.toLowerCase()}`;
+  }
+
   async start(): Promise<void> {
+    this.#restore();
     // The interval is armed before the first read, not after it. It used to be
     // created on the line following `await this.refresh()`, so a single
     // transient RPC failure threw past it: no timer was ever set, the client
@@ -204,6 +270,12 @@ export class ChainPool implements PoolClient {
       }
     };
 
+    // Sequential on purpose. Four windows at a time was tried against this node
+    // to shorten the cold load and made it worse — 78 seconds against 26, with
+    // thirteen forced splits against four. The node is what fails under load,
+    // so concurrency buys more failures, each failure buys more requests, and
+    // the requests are the thing being paid for. The cold load is fixed by not
+    // repeating it (see #restore) rather than by issuing it faster.
     for (let start = from; start <= to; start += SPAN) {
       await take(start, Math.min(start + SPAN - 1, to), 0);
     }
@@ -253,6 +325,7 @@ export class ChainPool implements PoolClient {
     // Last, so a throw anywhere above leaves the window unadvanced and the
     // next poll re-reads the range rather than skipping past it.
     this.#scannedTo = head;
+    this.#persist();
 
     // Straight from the contract. This pool has exactly one size and it is
     // whatever was set at deployment — nothing here gets to second-guess it.

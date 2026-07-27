@@ -106,17 +106,37 @@ export function PoolApp() {
           unread pool reuses index zero and the contract rejects it. */}
       {live && !loaded ? (
         <div className="shell-narrow page-in">
-          <PageHead title="Cannot read the pool" meta="no data — nothing below would be true" />
+          {/* Reading and failing are different things and must not look alike.
+              The first scan walks every block since deployment, so on a cold
+              load there is a real wait before any figure exists — showing the
+              failure copy through it would report a working site as a broken
+              one. `error` is the only thing that distinguishes them. */}
+          <PageHead
+            title={error ? 'Cannot read the pool' : 'Reading the pool'}
+            meta={error ? 'no data — nothing below would be true' : 'scanning every block since deployment'}
+          />
           <div className="card-hero" style={{ maxWidth: 640 }}>
             <div style={{ fontSize: 13.5, lineHeight: 1.8, color: 'var(--ink-70)' }}>
-              The RPC is not answering, so this page has no figures to show —
-              not zero notes and not an empty pool, but no information at all.
-              Your notes are unaffected: they live in the contract and are
-              derived from your wallet signature, so nothing here can lose them.
+              {error ? (
+                <>
+                  The RPC is not answering, so this page has no figures to show
+                  — not zero notes and not an empty pool, but no information at
+                  all. It retries every 15 seconds and this screen will go away
+                  on its own; nothing needs to be reloaded.
+                </>
+              ) : (
+                <>
+                  Every deposit since the pool was deployed is being read
+                  straight from the chain — there is no server holding an index
+                  of them, which is why this takes a moment and why nobody can
+                  hand you a doctored one.
+                </>
+              )}
               <br />
               <br />
-              It retries every 15 seconds and this screen will go away on its
-              own. Nothing needs to be reloaded.
+              Your notes are unaffected either way: they live in the contract
+              and are derived from your wallet signature, so nothing on this
+              screen can lose them.
             </div>
             <div className="eyebrow" style={{ marginTop: 24, color: 'var(--ink-45)' }}>
               Pool {import.meta.env.VITE_POOL_ADDRESS} · chain 4663
