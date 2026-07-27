@@ -11,11 +11,31 @@ import type { PoolClient, PoolState } from './types';
  * cases — that was the point of defining PoolClient before writing any of
  * them, and it is why deploying does not mean rewriting the frontend.
  */
+/**
+ * The RPC is proxied same-origin in production.
+ *
+ * The paid endpoint authenticates by its own URL path, so shipping it in the
+ * bundle would publish the credential to anyone who opens devtools. Routing
+ * through this origin keeps it server-side and stops every visitor's IP from
+ * reaching a third party alongside the queries this pool exists to keep
+ * unlinkable — the same reason the relayer and the ceremony are same-origin.
+ *
+ * An absolute URL in VITE_RPC_URL still works and is passed through untouched,
+ * which is what local development against a public node uses.
+ */
+function absolute(url: string): string {
+  return url.startsWith('/') ? new URL(url, location.origin).href : url;
+}
+
 export function chainConfig(): ChainConfig | null {
   const address = import.meta.env.VITE_POOL_ADDRESS;
   if (!address) return null;
   return {
-    rpcUrl: import.meta.env.VITE_RPC_URL ?? 'https://rpc.mainnet.chain.robinhood.com',
+    // Resolved against the origin because the default is a same-origin path.
+    // fetch() takes a relative URL; ethers does not — it hands the string to
+    // FetchRequest, which requires a scheme and rejects "/rpc" outright. The
+    // relayer URL escapes this only because it is used with fetch directly.
+    rpcUrl: absolute(import.meta.env.VITE_RPC_URL ?? '/rpc'),
     chainId: Number(import.meta.env.VITE_CHAIN_ID ?? 4663),
     poolAddress: address,
     deployBlock: Number(import.meta.env.VITE_DEPLOY_BLOCK ?? 0),

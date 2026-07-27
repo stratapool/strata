@@ -23,6 +23,27 @@ stratapool.xyz, www.stratapool.xyz {
     }
   }
 
+  # The chain RPC, same-origin.
+  #
+  # Two things this buys. The paid endpoint's credential is its own URL path,
+  # so putting it in the bundle publishes it to anyone who opens devtools and
+  # hands them the quota. And every visitor's IP would otherwise reach a third
+  # party alongside the exact queries this pool exists to keep unlinkable — the
+  # same reason the relayer and the ceremony are same-origin. The upstream sees
+  # one address, this server's, and this server keeps no log.
+  #
+  # The upstream URL is deliberately not in this repository. Set it in the live
+  # Caddyfile on the host; this file is the reviewable copy and a public one.
+  handle_path /rpc* {
+    rewrite * /YOUR_PROVIDER_PATH_TOKEN/
+    reverse_proxy https://YOUR_PROVIDER_HOST {
+      header_up Host YOUR_PROVIDER_HOST
+      transport http {
+        read_timeout 60s
+      }
+    }
+  }
+
   # ~20 MB and immutable; cached hard so a withdrawal is only slow once.
   @circuit path /circuit/*
   header @circuit Cache-Control "public, max-age=31536000, immutable"
@@ -71,7 +92,7 @@ stratapool.xyz, www.stratapool.xyz {
     # with analytics: false and beacons it anyway — that flag governs Reown's
     # dashboard, not the SDK's own telemetry. This is the browser enforcing a
     # property the library would not.
-    Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://api.web3modal.org; connect-src 'self' https://rpc.mainnet.chain.robinhood.com https://api.web3modal.org wss://relay.walletconnect.com wss://relay.walletconnect.org; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+    Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://api.web3modal.org; connect-src 'self' https://api.web3modal.org wss://relay.walletconnect.com wss://relay.walletconnect.org; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
   }
 
   # No access log. This host sees which addresses withdraw and from where;
