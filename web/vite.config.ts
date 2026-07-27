@@ -23,6 +23,30 @@ export default defineConfig({
       },
     ],
   },
+  // Served on `vite preview`, which runs the real build — the same policy Caddy
+  // applies in production, so a violation shows up locally instead of as a
+  // blank page on the live site.
+  //
+  // Not on the dev server: Vite injects its HMR client as an inline script, and
+  // `script-src 'self'` blanks the page. Relaxing the policy to accommodate
+  // that would mean developing against a weaker one than ships, which proves
+  // nothing — `npm run preview` is where this gets checked.
+  preview: {
+    port: 4173,
+    headers: {
+      'Content-Security-Policy':
+        "default-src 'self'; " +
+        "script-src 'self' 'wasm-unsafe-eval'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "font-src 'self'; " +
+        "img-src 'self' data: blob: https://api.web3modal.org; " +
+        "connect-src 'self' https://rpc.mainnet.chain.robinhood.com " +
+        "https://api.web3modal.org wss://relay.walletconnect.com " +
+        "wss://relay.walletconnect.org; " +
+        "worker-src 'self' blob:; frame-src 'none'; object-src 'none'; " +
+        "base-uri 'self'; form-action 'none'; frame-ancestors 'none'",
+    },
+  },
   server: {
     port: 5173,
     host: '127.0.0.1',

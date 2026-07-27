@@ -29,9 +29,14 @@ let started = false;
  *
  * Two settings here are not cosmetic:
  *
- *  - `analytics: false`. AppKit otherwise reports connection events to Reown.
- *    A privacy pool that phones home every time someone connects a wallet is
- *    leaking the one fact its users came here to avoid publishing.
+ *  - `analytics: false`. This governs Reown's dashboard and not the SDK's own
+ *    telemetry: with it set, opening the wallet modal still beacons to
+ *    pulse.walletconnect.org. A privacy pool that phones home every time
+ *    someone connects a wallet leaks the one fact its users came here to avoid
+ *    publishing, so the Content-Security-Policy omits that host and the browser
+ *    refuses the request. Verified — the beacon disappears and the modal still
+ *    works. Keep the flag anyway; it is the library's stated intent, and the
+ *    CSP is what enforces it.
  *  - `email`/`socials` disabled. Those flows hand an identity to a third-party
  *    custodian, which is the opposite of what this product does.
  *

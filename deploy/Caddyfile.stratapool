@@ -1,18 +1,31 @@
-# Site block for stratapool.xyz. Append to the Caddyfile already running on
-# the box (/opt/robinhood-bot/deploy/Caddyfile) — that Caddy owns 80/443.
-#
-# Cloudflare DNS must be grey-cloud (DNS only). Proxying puts a third party
-# in the path who would see every visitor's IP alongside their withdrawal
-# request — reconstructing exactly the link this protocol exists to break.
-
 stratapool.xyz, www.stratapool.xyz {
   encode zstd gzip
 
   # Same-origin on purpose. A relayer on its own hostname would receive the
-  # user's IP with each withdrawal as a separate, easily-correlated request.
+  # user's IP alongside each withdrawal as a separately correlatable request.
   handle_path /relayer/* {
-    reverse_proxy relayer:8788
+    reverse_proxy strata-relayer:8788
   }
+
+  # The phase-2 ceremony. Same-origin for the same reason the relayer is: a
+  # contributor's IP should not reach a second host alongside their upload.
+  handle_path /ceremony/* {
+    # A contribution is a ~20 MB upload and the verification behind it takes
+    # about ten seconds, so the defaults time out mid-request.
+    request_body {
+      max_size 64MB
+    }
+    reverse_proxy strata-ceremony:8789 {
+      transport http {
+        read_timeout 300s
+        write_timeout 300s
+      }
+    }
+  }
+
+  # ~20 MB and immutable; cached hard so a withdrawal is only slow once.
+  @circuit path /circuit/*
+  header @circuit Cache-Control "public, max-age=31536000, immutable"
 
   handle {
     root * /srv/strata
@@ -23,20 +36,29 @@ stratapool.xyz, www.stratapool.xyz {
   header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
-    # No referrer at all: a URL leaking to an external site would tell it a
-    # visitor was using a privacy pool.
     Referrer-Policy "no-referrer"
     X-Frame-Options "DENY"
+    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     -Server
+
+    # The page holds note secrets in memory. Without a policy, one injected
+    # script could read them and post them anywhere; with one, it can compute
+    # but it cannot get anything out. connect-src is the load-bearing line.
+    #
+    # wasm-unsafe-eval: snarkjs compiles the circuit to WebAssembly to prove.
+    # unsafe-inline for styles only: React writes style attributes everywhere
+    # and AppKit is Lit-based. Scripts get no such exemption.
+    #
+    # pulse.walletconnect.org is deliberately absent. AppKit is configured
+    # with analytics: false and beacons it anyway — that flag governs Reown's
+    # dashboard, not the SDK's own telemetry. This is the browser enforcing a
+    # property the library would not.
+    Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://api.web3modal.org; connect-src 'self' https://rpc.mainnet.chain.robinhood.com https://api.web3modal.org wss://relay.walletconnect.com wss://relay.walletconnect.org; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
   }
 
-  # The proving key is ~20 MB, content-addressed by filename, and immutable.
-  @circuit path /circuit/*
-  header @circuit Cache-Control "public, max-age=31536000, immutable"
-
-  # No access log. This server sees which addresses withdraw and from where;
-  # writing that to disk creates the correlation records the protocol is
-  # supposed to make impossible.
+  # No access log. This host sees which addresses withdraw and from where;
+  # writing that down manufactures exactly the records the protocol exists
+  # to make impossible.
   log {
     output discard
   }
