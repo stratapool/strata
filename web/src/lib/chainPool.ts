@@ -91,6 +91,10 @@ export class ChainPool implements PoolClient {
    * already did.
    */
   #spent = new Set<string>();
+  /** leafIndex -> deposit, so a re-read of an overlapping range cannot duplicate. */
+  #seenDeposits = new Map<number, DepositRecord>();
+  /** Highest block whose logs are already folded in; 0 means nothing yet. */
+  #scannedTo = 0;
   #notes: Note[] = [];
   /** noteId -> secrets, so spending does not care where a note came from. */
   #secrets = new Map<string, { nullifier: bigint; secret: bigint }>();
@@ -133,11 +137,26 @@ export class ChainPool implements PoolClient {
   }
 
   async start(): Promise<void> {
-    this.#denomination = await this.#contract.denomination!();
-    await this.refresh();
-    // Deposits are the only thing that moves the tree; polling is enough and
+    // The interval is armed before the first read, not after it. It used to be
+    // created on the line following `await this.refresh()`, so a single
+    // transient RPC failure threw past it: no timer was ever set, the client
+    // never tried again, and the page stayed broken until someone reloaded it.
+    // Deposits are the only thing that moves the tree, so polling is enough and
     // avoids depending on websocket support from the RPC.
-    this.#poll = setInterval(() => void this.refresh(), 15_000);
+    this.#poll = setInterval(() => void this.refresh().catch(() => {}), 15_000);
+    await this.refresh();
+  }
+
+  /**
+   * Whether any read has ever succeeded.
+   *
+   * The UI needs this to tell "no notes" from "no idea". Without it a failed
+   * read renders as a pool holding nothing — zero notes, zero ETH, and a
+   * privacy warning telling the user the set is empty — which is a confident
+   * statement about someone's money made from no data at all.
+   */
+  hasLoaded(): boolean {
+    return this.#scannedTo !== 0;
   }
 
   stop(): void {
@@ -146,42 +165,94 @@ export class ChainPool implements PoolClient {
     this.#listeners.clear();
   }
 
+  /**
+   * Pages a log query instead of asking for the whole chain at once.
+   *
+   * `queryFilter(filter, deployBlock, 'latest')` is one request whose span
+   * grows with every block mined. It worked at launch and stopped working
+   * around sixty thousand blocks in, when the RPC began answering `internal
+   * server errror` — taking the site down with it, since a failed read left
+   * the client asserting the pool was empty. A fixed window means the request
+   * never gets bigger, whatever the chain does.
+   */
+  async #logs(filter: unknown, from: number, to: number) {
+    const SPAN = 10_000;
+    const out: unknown[] = [];
+
+    // Halve on failure rather than picking one safe window. Measured against
+    // this RPC, spans of 9k and above fail roughly one time in five while 2k
+    // and below always succeed — but the boundary is the node's, not ours, and
+    // it moves. Splitting adapts to whatever it happens to be, and doubles as
+    // a retry when the failure was only the node having a bad moment.
+    const take = async (a: number, b: number, depth: number): Promise<void> => {
+      try {
+        out.push(
+          ...(await this.#contract.queryFilter(
+            filter as Parameters<Contract['queryFilter']>[0],
+            a,
+            b,
+          )),
+        );
+      } catch (e) {
+        // A single block that still fails is not a range problem, and halving
+        // it further would spin. Let it out so the caller keeps the old data
+        // instead of silently reporting a pool with fewer notes in it.
+        if (b - a < 32 || depth >= 10) throw e;
+        const mid = Math.floor((a + b) / 2);
+        await take(a, mid, depth + 1);
+        await take(mid + 1, b, depth + 1);
+      }
+    };
+
+    for (let start = from; start <= to; start += SPAN) {
+      await take(start, Math.min(start + SPAN - 1, to), 0);
+    }
+    return out as { args: Record<string, unknown> }[];
+  }
+
   async refresh(): Promise<void> {
+    // Resolved once and reused for both queries so the two cannot disagree
+    // about where "latest" is — and so #scannedTo means one definite block.
+    const head = await this.#read.getBlockNumber();
+    // Deposits and withdrawals are append-only, so past ranges never change
+    // and only the new tail has to be fetched. The 12-block rewind is for
+    // reorgs; both sets dedupe, so re-reading an event costs nothing.
+    const from =
+      this.#scannedTo === 0
+        ? this.#cfg.deployBlock
+        : Math.max(this.#cfg.deployBlock, this.#scannedTo - 12);
+
+    if (this.#denomination === 0n) {
+      this.#denomination = await this.#contract.denomination!();
+    }
+
     const [unspent, reserveWei, events, spentEvents] = await Promise.all([
       this.#contract.unspentNotes!(),
       this.#contract.reserve!(),
-      this.#contract.queryFilter(
-        this.#contract.filters.Deposit!(),
-        this.#cfg.deployBlock,
-        'latest',
-      ),
+      this.#logs(this.#contract.filters.Deposit!(), from, head),
       // Undirected on purpose: every burned nullifier, not the ones we care
       // about. See #spent.
-      this.#contract.queryFilter(
-        this.#contract.filters.Withdrawal!(),
-        this.#cfg.deployBlock,
-        'latest',
-      ),
+      this.#logs(this.#contract.filters.Withdrawal!(), from, head),
     ]);
 
-    this.#spent = new Set(
-      spentEvents.map((e) =>
-        String(
-          (e as unknown as { args: Record<string, unknown> }).args.nullifierHash,
-        ).toLowerCase(),
-      ),
+    for (const e of spentEvents) {
+      this.#spent.add(String(e.args.nullifierHash).toLowerCase());
+    }
+
+    for (const e of events) {
+      this.#seenDeposits.set(Number(e.args.leafIndex), {
+        commitment: BigInt(e.args.commitment as string),
+        leafIndex: Number(e.args.leafIndex),
+        timestamp: Number(e.args.timestamp),
+      });
+    }
+    this.#deposits = [...this.#seenDeposits.values()].sort(
+      (a, b) => a.leafIndex - b.leafIndex,
     );
 
-    this.#deposits = events
-      .map((e) => {
-        const args = (e as unknown as { args: Record<string, unknown> }).args;
-        return {
-          commitment: BigInt(args.commitment as string),
-          leafIndex: Number(args.leafIndex),
-          timestamp: Number(args.timestamp),
-        };
-      })
-      .sort((a, b) => a.leafIndex - b.leafIndex);
+    // Last, so a throw anywhere above leaves the window unadvanced and the
+    // next poll re-reads the range rather than skipping past it.
+    this.#scannedTo = head;
 
     // Straight from the contract. This pool has exactly one size and it is
     // whatever was set at deployment — nothing here gets to second-guess it.

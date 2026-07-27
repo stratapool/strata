@@ -15,6 +15,8 @@ export interface Strata {
   ready: boolean;
   /** Non-null when the deployed pool could not be reached or read. */
   error: string | null;
+  /** False until a read has succeeded; figures are meaningless before it. */
+  loaded: boolean;
 }
 
 const DEFAULT_CHAIN_ID = 4663;
@@ -28,7 +30,7 @@ const DEFAULT_CHAIN_ID = 4663;
  */
 export function useStrata(): Strata {
   const cfg = chainConfig();
-  const { pool, state, balance, live, error } = usePool();
+  const { pool, state, balance, live, error, loaded } = usePool();
   const wallet = useWallet(cfg?.chainId ?? DEFAULT_CHAIN_ID);
 
   useEffect(() => {
@@ -55,5 +57,6 @@ export function useStrata(): Strata {
     wallet,
     ready: !live || wallet.status === 'unlocked',
     error,
+    loaded,
   };
 }

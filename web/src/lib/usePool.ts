@@ -36,6 +36,12 @@ export function usePool(): {
   live: boolean;
   /** Non-null when the client could not reach or read the deployed pool. */
   error: string | null;
+  /**
+   * False until a read has actually succeeded. The UI must not print figures
+   * before this is true — zeros from a failed read are indistinguishable on
+   * screen from zeros from an empty pool.
+   */
+  loaded: boolean;
 } {
   const cfg = useMemo(chainConfig, []);
   const pool = useMemo<PoolClient>(
@@ -44,17 +50,25 @@ export function usePool(): {
   );
   const [state, setState] = useState<PoolState>(() => pool.getState());
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(() => !(pool instanceof ChainPool));
   const [, force] = useState(0);
 
   useEffect(() => {
     const unsub = pool.subscribe((s) => {
       setState(s);
+      // A subscriber only fires after a successful refresh, so this is the
+      // moment the figures stop being guesses. Clearing the error here matters
+      // as much as setting it: the client keeps polling after a failure, and a
+      // banner left standing over data that has since recovered is its own
+      // kind of lie.
+      setLoaded(true);
+      setError(null);
       force((n) => n + 1);
     });
     if (pool instanceof ChainPool) {
-      // A bad address, a dead RPC or a wrong chain id all land here. Surfacing
-      // it beats an unhandled rejection and a page that silently shows zeros
-      // as though the pool were simply empty.
+      // A bad address, a dead RPC or a wrong chain id all land here. The page
+      // must not fall back to rendering zeros as though the pool were simply
+      // empty — see `loaded`, which is what actually prevents that.
       pool.start().catch((e: unknown) => {
         setError(e instanceof Error ? e.message : String(e));
       });
@@ -66,5 +80,5 @@ export function usePool(): {
     };
   }, [pool]);
 
-  return { pool, state, balance: pool.getBalance(), live: cfg !== null, error };
+  return { pool, state, balance: pool.getBalance(), live: cfg !== null, error, loaded };
 }

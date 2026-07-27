@@ -56,6 +56,37 @@ const eth = (v) => ethers.formatEther(v);
 const line = (s = '') => console.log(s);
 const rule = () => line('─'.repeat(74));
 
+/**
+ * Reads logs in windows, halving any window the RPC refuses.
+ *
+ * A single `queryFilter(filter, deployBlock, 'latest')` is one request whose
+ * span grows with every block mined. It worked at launch and began failing
+ * with `internal server errror` once the pool was sixty thousand blocks old —
+ * blocking both this script and the site. Measured against this RPC, spans of
+ * 9k and above fail about one time in five while 2k and below always succeed,
+ * but that boundary belongs to the node and moves; splitting finds it, and
+ * doubles as a retry when the failure was only a bad moment.
+ */
+async function logsInWindows(contract, filter, from, to) {
+  const SPAN = 10_000;
+  const out = [];
+  const take = async (a, b, depth) => {
+    try {
+      out.push(...(await contract.queryFilter(filter, a, b)));
+    } catch (e) {
+      // Still failing on a 32-block window is not a range problem. Throwing
+      // beats returning a short list: a caller that believes it has every
+      // deposit will build the wrong merkle tree and every proof will fail.
+      if (b - a < 32 || depth >= 10) throw e;
+      const mid = Math.floor((a + b) / 2);
+      await take(a, mid, depth + 1);
+      await take(mid + 1, b, depth + 1);
+    }
+  };
+  for (let s = from; s <= to; s += SPAN) await take(s, Math.min(s + SPAN - 1, to), 0);
+  return out;
+}
+
 async function main() {
   if (!process.env.SEED_KEY) throw new Error('set SEED_KEY');
   if (!TO || !ethers.isAddress(TO)) throw new Error('pass --to 0xRecipient');
@@ -108,7 +139,7 @@ async function main() {
 
   // ------------------------------------------------------------------- find
   const seed = seedFromSignature(await wallet.signMessage(DERIVATION_MESSAGE));
-  const events = await pool.queryFilter(pool.filters.Deposit(), info.deployBlock, 'latest');
+  const events = await logsInWindows(pool, pool.filters.Deposit(), info.deployBlock, await provider.getBlockNumber());
   const sorted = events.sort((a, b) => Number(a.args.leafIndex) - Number(b.args.leafIndex));
   const leaves = sorted.map((e) => BigInt(e.args.commitment));
   const byCommitment = new Map(leaves.map((l, i) => [l.toString(), i]));

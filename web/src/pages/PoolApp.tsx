@@ -34,7 +34,7 @@ export function PoolApp() {
   const [tab, setTab] = useState<Tab>('deposit');
   /** Carried from the Transfer tab so paying someone is one continuous flow. */
   const [prefilledRecipient, setPrefilledRecipient] = useState('');
-  const { pool, state, balance, live, wallet, ready, error } = useStrata();
+  const { pool, state, balance, live, wallet, ready, error, loaded } = useStrata();
 
   return (
     <>
@@ -92,9 +92,39 @@ export function PoolApp() {
             letterSpacing: '.04em',
           }}
         >
-          Cannot read the pool: {error}. Figures below are not live.
+          Cannot read the pool: {error}
+          {loaded ? '. Figures below are from the last successful read.' : '.'}
         </div>
       )}
+
+      {/* Nothing below this point can be drawn honestly before a read has
+          succeeded. The panels used to render the initial empty state — zero
+          notes, zero ETH, and a privacy warning saying the set was empty and
+          not to withdraw — which is a confident claim about someone's money
+          built from no data. Depositing is broken here too: the derivation
+          index comes from scanning the tree, so a deposit made against an
+          unread pool reuses index zero and the contract rejects it. */}
+      {live && !loaded ? (
+        <div className="shell-narrow page-in">
+          <PageHead title="Cannot read the pool" meta="no data — nothing below would be true" />
+          <div className="card-hero" style={{ maxWidth: 640 }}>
+            <div style={{ fontSize: 13.5, lineHeight: 1.8, color: 'var(--ink-70)' }}>
+              The RPC is not answering, so this page has no figures to show —
+              not zero notes and not an empty pool, but no information at all.
+              Your notes are unaffected: they live in the contract and are
+              derived from your wallet signature, so nothing here can lose them.
+              <br />
+              <br />
+              It retries every 15 seconds and this screen will go away on its
+              own. Nothing needs to be reloaded.
+            </div>
+            <div className="eyebrow" style={{ marginTop: 24, color: 'var(--ink-45)' }}>
+              Pool {import.meta.env.VITE_POOL_ADDRESS} · chain 4663
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
 
       {tab === 'deposit' &&
         (ready ? <Deposit pool={pool} state={state} /> : <Gated title="Deposit" wallet={wallet} />)}
@@ -118,6 +148,8 @@ export function PoolApp() {
         ))}
       {/* Pool stats are public data — no wallet needed to look at the set. */}
       {tab === 'pool' && <PoolStats state={state} />}
+        </>
+      )}
 
       <AppFooter />
     </>
