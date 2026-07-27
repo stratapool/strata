@@ -23,15 +23,19 @@ import {
   type WithdrawRequest,
 } from './types';
 
+// isSpent is deliberately absent. The contract has it, but calling it per note
+// is what leaked the user's note set to the RPC provider; spent-ness now comes
+// from the Withdrawal log in bulk. Leaving it out means restoring that leak
+// requires putting the entry back, which is visible in a diff.
 const POOL_ABI = [
   'function deposit(bytes32 _commitment) external payable',
-  'function isSpent(bytes32 _nullifierHash) external view returns (bool)',
   'function getLastRoot() external view returns (bytes32)',
   'function denomination() external view returns (uint256)',
   'function unspentNotes() external view returns (uint256)',
   'function reserve() external view returns (uint256)',
   'function nextIndex() external view returns (uint32)',
   'event Deposit(bytes32 indexed commitment, uint32 leafIndex, uint256 timestamp)',
+  'event Withdrawal(address indexed to, bytes32 nullifierHash, address indexed relayer, uint256 relayerFee)',
 ];
 
 export interface ChainConfig {
@@ -68,6 +72,23 @@ export class ChainPool implements PoolClient {
 
   #state: PoolState;
   #deposits: DepositRecord[] = [];
+  /**
+   * Every nullifier hash the pool has ever burned, fetched in bulk.
+   *
+   * This exists so the client never asks about a *particular* note. It used to
+   * call isSpent(nullifierHash) once per note it owned — and only for notes it
+   * owned, since the call sat behind the commitment match. Each of those
+   * requests told the RPC provider "this nullifier hash is mine", naming the
+   * exact 32 bytes that appear on chain when that note is later spent. With
+   * AppKit querying eth_getBalance for the connected address against the same
+   * endpoint, one party held both halves of the link the whole protocol exists
+   * to break, refreshed every fifteen seconds.
+   *
+   * Withdrawal events are public and undirected: fetching all of them reveals
+   * nothing about which are yours, exactly as fetching all Deposit events
+   * already did.
+   */
+  #spent = new Set<string>();
   #notes: Note[] = [];
   /** noteId -> secrets, so spending does not care where a note came from. */
   #secrets = new Map<string, { nullifier: bigint; secret: bigint }>();
@@ -91,8 +112,22 @@ export class ChainPool implements PoolClient {
     this.#account = account;
   }
 
-  setSeed(seed: string): void {
+  /**
+   * Accepts null so locking, or switching accounts, genuinely forgets.
+   *
+   * It used to take a string, and useStrata returned early when the seed went
+   * null — so Lock cleared the UI gate and nothing else. The client kept the
+   * seed, kept the derived secrets, and kept re-deriving them on every poll.
+   * Switching from one wallet to another left the previous wallet's notes
+   * still being scanned alongside the new wallet's balance query.
+   */
+  setSeed(seed: string | null): void {
     this.#seed = seed;
+    if (seed === null) {
+      this.#notes = [];
+      this.#secrets.clear();
+      this.#nextDerivedIndex = 0;
+    }
   }
 
   async start(): Promise<void> {
@@ -110,7 +145,7 @@ export class ChainPool implements PoolClient {
   }
 
   async refresh(): Promise<void> {
-    const [unspent, reserveWei, events] = await Promise.all([
+    const [unspent, reserveWei, events, spentEvents] = await Promise.all([
       this.#contract.unspentNotes!(),
       this.#contract.reserve!(),
       this.#contract.queryFilter(
@@ -118,7 +153,22 @@ export class ChainPool implements PoolClient {
         this.#cfg.deployBlock,
         'latest',
       ),
+      // Undirected on purpose: every burned nullifier, not the ones we care
+      // about. See #spent.
+      this.#contract.queryFilter(
+        this.#contract.filters.Withdrawal!(),
+        this.#cfg.deployBlock,
+        'latest',
+      ),
     ]);
+
+    this.#spent = new Set(
+      spentEvents.map((e) =>
+        String(
+          (e as unknown as { args: Record<string, unknown> }).args.nullifierHash,
+        ).toLowerCase(),
+      ),
+    );
 
     this.#deposits = events
       .map((e) => {
@@ -193,18 +243,20 @@ export class ChainPool implements PoolClient {
     const secrets = new Map<string, { nullifier: bigint; secret: bigint }>();
     const denomination = Number(this.#denomination) / 1e18;
 
-    const consider = async (
+    // Synchronous now, and that is the point: there is no per-note request
+    // left to make.
+    const consider = (
       id: string,
       nullifier: bigint,
       secret: bigint,
-    ): Promise<boolean> => {
+    ): boolean => {
       const commitment = pedersenHash(
         concat(leInt2Buff(nullifier, 31), leInt2Buff(secret, 31)),
       );
       const record = byCommitment.get(commitment);
       if (!record) return false;
       const nullifierHash = pedersenHash(leInt2Buff(nullifier, 31));
-      const spent = Boolean(await this.#contract.isSpent!(toHex32(nullifierHash)));
+      const spent = this.#spent.has(toHex32(nullifierHash).toLowerCase());
       secrets.set(id, { nullifier, secret });
       found.push({
         id,
@@ -223,13 +275,13 @@ export class ChainPool implements PoolClient {
       let misses = 0;
       for (let i = 0; misses < GAP_LIMIT; i++) {
         const { nullifier, secret } = deriveNoteSecrets(this.#seed, i);
-        misses = (await consider(`note-${i}`, nullifier, secret)) ? 0 : misses + 1;
+        misses = consider(`note-${i}`, nullifier, secret) ? 0 : misses + 1;
       }
       this.#nextDerivedIndex = found.length;
     }
 
     for (const entry of noteVault.all()) {
-      await consider(
+      consider(
         `imported-${entry.nullifier.slice(0, 12)}`,
         BigInt(entry.nullifier),
         BigInt(entry.secret),
@@ -278,7 +330,11 @@ export class ChainPool implements PoolClient {
 
     const { pedersenHash } = await crypto();
     const nullifierHash = pedersenHash(leInt2Buff(note.nullifier, 31));
-    if (await this.#contract.isSpent!(toHex32(nullifierHash))) {
+    // From the locally-held set rather than a targeted isSpent call. Asking the
+    // RPC about this particular hash would announce that whoever just received
+    // this note is now holding it — the off-chain handoff the interface
+    // describes as unobservable.
+    if (this.#spent.has(toHex32(nullifierHash).toLowerCase())) {
       return { ok: false, reason: 'That note has already been spent.' };
     }
 

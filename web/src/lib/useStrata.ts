@@ -38,8 +38,10 @@ export function useStrata(): Strata {
   }, [pool, wallet.provider, wallet.account]);
 
   useEffect(() => {
-    if (!(pool instanceof ChainPool) || !wallet.seed) return;
-    pool.setSeed(wallet.seed);
+    if (!(pool instanceof ChainPool)) return;
+    // Unconditional: a null seed is the instruction to forget, not a reason to
+    // skip. Returning early here is what made Lock cosmetic.
+    pool.setSeed(wallet.seed ?? null);
     // Re-scan immediately: until the seed is known the client cannot tell
     // which on-chain commitments are the user's, so the balance reads zero.
     void pool.refresh();

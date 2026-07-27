@@ -1,3 +1,4 @@
+import { open } from 'node:fs/promises';
 import * as snarkjs from 'snarkjs';
 
 /**
@@ -17,6 +18,16 @@ import * as snarkjs from 'snarkjs';
  * So validity is necessary and not sufficient. The coordinator additionally
  * requires that the transcript it already published is a *prefix* of what was
  * uploaded, with exactly one entry added.
+ *
+ * The contribution *count* is read from the key itself, never from the log.
+ * That is not belt-and-braces: contributors choose their own name, snarkjs
+ * interpolates it into the log title verbatim, and a name containing a newline
+ * pushes the title's colon onto the next line so the entry fails to parse and
+ * is skipped. An upload with two new contributions then reads as one, passes
+ * the prefix check, and is accepted — after which the key and the transcript
+ * disagree, every later upload fails the contiguity check, and the ceremony is
+ * wedged for everyone with no error that names the cause. A restart does not
+ * notice, because both sides skip the same entry.
  */
 
 export interface Contribution {
@@ -35,11 +46,51 @@ export interface ChainReport {
 const normaliseHash = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
 /**
- * snarkjs has no API for listing contributions — the CLI prints them — so they
- * are recovered from the logger it accepts. Fragile by nature, which is why
- * `readChain` refuses a result it cannot fully account for rather than
- * returning a partial list: a parser that silently drops an entry here would
- * defeat the prefix check it exists to feed.
+ * The number of contributions, read from the key's own MPC section.
+ *
+ * A zkey is a section table: magic, version, section count, then (id, length,
+ * data) triples. Section 10 holds the phase-2 parameters and opens with a
+ * 64-byte cs hash followed by a little-endian u32 count. Nothing here parses
+ * text, so nothing here can be influenced by what a contributor calls
+ * themselves.
+ */
+async function trueContributionCount(zkeyPath: string): Promise<number> {
+  const fd = await open(zkeyPath, 'r');
+  try {
+    const head = Buffer.alloc(12);
+    await fd.read(head, 0, 12, 0);
+    if (head.subarray(0, 4).toString('latin1') !== 'zkey') {
+      throw new Error('not a zkey file');
+    }
+    const sections = head.readUInt32LE(8);
+
+    let at = 12;
+    const entry = Buffer.alloc(12);
+    for (let i = 0; i < sections; i++) {
+      await fd.read(entry, 0, 12, at);
+      const id = entry.readUInt32LE(0);
+      const length = Number(entry.readBigUInt64LE(4));
+      const start = at + 12;
+      if (id === 10) {
+        const count = Buffer.alloc(4);
+        await fd.read(count, 0, 4, start + 64);
+        return count.readUInt32LE(0);
+      }
+      at = start + length;
+    }
+    throw new Error('the key has no phase-2 section');
+  } finally {
+    await fd.close();
+  }
+}
+
+/**
+ * Verifies a key and reports its contribution chain.
+ *
+ * Names and hashes come from snarkjs's logger, because it exposes no API for
+ * them. The *count* does not — it is read from the file, and a disagreement
+ * between the two is fatal. That is what stops a contributor from choosing a
+ * name that makes their own entry unparseable and therefore invisible.
  */
 export async function readChain(
   zkeyPath: string,
@@ -73,7 +124,9 @@ export async function readChain(
       continue;
     }
 
-    const contribution = /^contribution #(\d+)\s*(.*?):\s*([\s\S]*)$/i.exec(
+    // [\s\S] rather than . so a newline inside the contributor-chosen name
+    // cannot push the colon out of reach and make the entry vanish.
+    const contribution = /^contribution #(\d+)\s+([\s\S]*?):\s*([\s\S]*)$/i.exec(
       message.trim(),
     );
     if (!contribution) continue;
@@ -106,6 +159,18 @@ export async function readChain(
       );
     }
   });
+
+  // The log said one thing; the file says another. Whichever is right, the
+  // parser is not to be trusted with the count, and accepting the difference
+  // is what desynchronises the key from the transcript.
+  const actual = await trueContributionCount(zkeyPath);
+  if (actual !== contributions.length) {
+    throw new Error(
+      `the key holds ${actual} contributions but only ${contributions.length} ` +
+        'could be read from the verification log — refusing it. A contribution ' +
+        'name containing a newline does this.',
+    );
+  }
 
   return { valid, circuitHash, contributions };
 }
