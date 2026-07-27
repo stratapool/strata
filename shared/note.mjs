@@ -137,15 +137,37 @@ export class MerkleTree {
       this.zeros.push(hashLeftRight(this.zeros[i - 1], this.zeros[i - 1]));
     }
     this.leaves = [...leaves];
+    this.#cache = null;
   }
+
+  /**
+   * Memoised layers. Invalidated by insert(), which is the only mutator.
+   *
+   * root() and path() each rebuilt the whole tree, so withdrawing N notes cost
+   * N+1 full rebuilds — every one of them O(leaves) MiMC hashes. Measured at
+   * depth 20: 43ms per call at 100 leaves, 398ms at 1,000, 4.2 seconds at
+   * 10,000. Withdrawing five notes from a pool with ten thousand deposits
+   * therefore meant about twenty-five seconds of blocking work, in the browser,
+   * on the main thread, at the moment the user is waiting on a withdrawal.
+   *
+   * Nothing about the layers changes between those calls. Building them once
+   * makes path() O(depth) — twenty array lookups — and leaves the single build
+   * as the only cost that scales.
+   *
+   * `leaves` is public and this cache assumes it is not written to directly.
+   * Everything in this repository goes through insert() or the constructor.
+   */
+  #cache = null;
 
   insert(leaf) {
     if (this.leaves.length >= 2 ** this.levels) throw new Error('tree is full');
     this.leaves.push(leaf);
+    this.#cache = null;
     return this.leaves.length - 1;
   }
 
   #layers() {
+    if (this.#cache) return this.#cache;
     const layers = [this.leaves.slice()];
     for (let lvl = 0; lvl < this.levels; lvl++) {
       const cur = layers[lvl];
@@ -157,6 +179,7 @@ export class MerkleTree {
       }
       layers.push(next);
     }
+    this.#cache = layers;
     return layers;
   }
 

@@ -454,6 +454,8 @@ export class ChainPool implements PoolClient {
       this.#logs(this.#contract.filters.Withdrawal!(), from, head),
     ]);
 
+    const before = this.#seenDeposits.size + this.#spent.size;
+
     for (const e of spentEvents) {
       this.#spent.add(String(e.args.nullifierHash).toLowerCase());
     }
@@ -465,14 +467,23 @@ export class ChainPool implements PoolClient {
         timestamp: Number(e.args.timestamp),
       });
     }
-    this.#deposits = [...this.#seenDeposits.values()].sort(
-      (a, b) => a.leafIndex - b.leafIndex,
-    );
+    const changed = this.#seenDeposits.size + this.#spent.size !== before;
+    if (changed) {
+      this.#deposits = [...this.#seenDeposits.values()].sort(
+        (a, b) => a.leafIndex - b.leafIndex,
+      );
+    }
 
     // Last, so a throw anywhere above leaves the window unadvanced and the
     // next poll re-reads the range rather than skipping past it.
     this.#scannedTo = head;
-    this.#persist();
+    // Only when the log actually grew. Serialising every deposit and nullifier
+    // on each 15-second poll costs nothing at a hundred notes and is a
+    // multi-megabyte stringify plus a synchronous storage write at a hundred
+    // thousand — for bytes identical to the ones already there. Nothing else
+    // in refresh() scales with the pool's history any more, and this would
+    // have been the last thing that did.
+    if (changed) this.#persist();
 
     // Straight from the contract. This pool has exactly one size and it is
     // whatever was set at deployment — nothing here gets to second-guess it.
