@@ -73,6 +73,7 @@ export function createServer(
         feePerWithdrawalEth: formatEther(fee),
         unspentNotes: notes.toString(),
         queueDepth: queue.depth,
+        stuck: pool.stuck,
       });
     } catch (e) {
       res.status(503).json({ ok: false, error: (e as Error).message });
@@ -126,6 +127,27 @@ export function createServer(
         // already-spent guard, and cost the relayer gas for nothing. Rechecking
         // here — after every earlier submission has settled — is what makes the
         // duplicates free to reject.
+        // Refused before joining the lane, not after waiting in it. A stuck
+        // relayer cannot submit anything — the nonce is unaccounted for — so
+        // queueing behind it only converts a clear failure into a hang. Same
+        // for a queue that has grown past any plausible wait: the caller is
+        // better served by a refusal it can act on than by a connection held
+        // open until something times out.
+        if (pool.stuck) {
+          res.status(503).json({
+            error:
+              'relayer has an unresolved transaction and is not accepting ' +
+              'withdrawals; choose another relayer or submit the proof yourself',
+          });
+          return;
+        }
+        if (queue.depth >= cfg.MAX_QUEUE_DEPTH) {
+          res.status(503).json({
+            error: `relayer queue is ${queue.depth} deep; try again shortly`,
+          });
+          return;
+        }
+
         const result = await queue.run(async () => {
           await pool.assertUnspent(request);
           return pool.submit(request, gasEstimate);

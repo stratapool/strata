@@ -163,26 +163,100 @@ export class PoolClient {
     return { gasEstimate, expectedCost, worstCost, fee };
   }
 
+  /**
+   * True once a transaction could not be resolved and the nonce is unaccounted
+   * for. Nothing may be submitted after that: the next transaction would claim
+   * a nonce that a still-pending one already holds, which is the collision the
+   * serial queue exists to prevent. The server turns this into a fast, honest
+   * refusal instead of a wait behind a wall.
+   */
+  get stuck(): boolean {
+    return this.#stuck;
+  }
+  #stuck = false;
+
   async submit(req: WithdrawRequest, gasEstimate: bigint): Promise<RelayResult> {
-    const tx = await this.contract.withdraw!(
-      req.proof.a,
-      req.proof.b,
-      req.proof.c,
-      req.root,
-      req.nullifierHash,
-      req.recipient,
-      req.relayer,
-      // Explicit limit so a mid-flight estimate change cannot strand the tx.
-      { gasLimit: (gasEstimate * 130n) / 100n },
-    );
-    const receipt = await tx.wait();
-    if (!receipt || receipt.status !== 1) {
-      throw new RelayRejected('withdrawal transaction reverted', 502);
+    if (this.#stuck) {
+      throw new RelayRejected(
+        'relayer has an unresolved transaction and cannot submit; withdraw ' +
+          'through another relayer or submit the proof yourself',
+        503,
+      );
     }
-    return {
-      txHash: receipt.hash,
-      relayerFee: (await this.relayerFee()).toString(),
-      gasUsed: receipt.gasUsed.toString(),
-    };
+
+    const send = (overrides: Record<string, unknown>) =>
+      this.contract.withdraw!(
+        req.proof.a,
+        req.proof.b,
+        req.proof.c,
+        req.root,
+        req.nullifierHash,
+        req.recipient,
+        req.relayer,
+        // Explicit limit so a mid-flight estimate change cannot strand the tx.
+        { gasLimit: (gasEstimate * 130n) / 100n, ...overrides },
+      );
+
+    let tx = await send({});
+
+    // `tx.wait()` with no timeout was the whole problem. A transaction that
+    // never mines — underpriced against a spike, dropped by the mempool, or a
+    // node that simply stops answering — left this await pending forever, and
+    // because the queue is strictly serial every withdrawal behind it waited
+    // just as long. Nobody was told anything.
+    //
+    // Bounding the wait alone would be worse than leaving it: releasing the
+    // lane while a transaction is still pending means the next one claims the
+    // same nonce. So a timeout is answered by *replacing* the transaction at
+    // that same nonce with a higher-priced copy, which is the only move that
+    // both frees the lane and keeps the nonce accounted for.
+    //
+    // Replacing a withdrawal with itself is safe: the two carry the same
+    // nullifier, so whichever lands first burns the note and the other reverts
+    // on "note already spent" without paying anyone twice.
+    for (let bump = 0; ; bump++) {
+      try {
+        const receipt = await tx.wait(1, this.cfg.TX_TIMEOUT_MS);
+        if (!receipt || receipt.status !== 1) {
+          throw new RelayRejected('withdrawal transaction reverted', 502);
+        }
+        return {
+          txHash: receipt.hash,
+          relayerFee: (await this.relayerFee()).toString(),
+          gasUsed: receipt.gasUsed.toString(),
+        };
+      } catch (e) {
+        if (e instanceof RelayRejected) throw e;
+        // Only a timeout is retryable here. Anything else already resolved the
+        // nonce one way or the other.
+        const timedOut = (e as { code?: string }).code === 'TIMEOUT';
+        if (!timedOut) throw e;
+
+        if (bump >= this.cfg.TX_MAX_BUMPS) {
+          // Out of options with a transaction still in flight. Refusing new
+          // work is the honest state: the alternative is guessing at a nonce
+          // and silently dropping someone's withdrawal.
+          this.#stuck = true;
+          throw new RelayRejected(
+            `transaction ${tx.hash} did not confirm after ${bump} fee bumps; ` +
+              'the relayer is now refusing new withdrawals until it is resolved',
+            504,
+          );
+        }
+
+        // At least 12.5% or a replacement is rejected as underpriced; 30% to
+        // clear it in one go rather than bumping repeatedly into the same wall.
+        const bumped = (v: bigint | null | undefined) =>
+          v == null ? undefined : (v * 130n) / 100n;
+        const prev = await this.provider.getTransaction(tx.hash);
+        tx = await send({
+          nonce: tx.nonce,
+          maxFeePerGas: bumped(prev?.maxFeePerGas ?? tx.maxFeePerGas),
+          maxPriorityFeePerGas: bumped(
+            prev?.maxPriorityFeePerGas ?? tx.maxPriorityFeePerGas,
+          ),
+        });
+      }
+    }
   }
 }

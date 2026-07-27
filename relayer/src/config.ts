@@ -53,6 +53,16 @@ const schema = z.object({
 
   /** Warn loudly below this balance; the float is meant to be self-sustaining. */
   MIN_BALANCE_ETH: z.coerce.number().nonnegative().default(0.002),
+  // How long to wait for one withdrawal before replacing it at the same nonce.
+  // Blocks on this chain are sub-second, so a minute is already far outside
+  // normal and short enough that a caller is still there to be told.
+  TX_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  // Replacements before giving up and refusing new work. Each is +30%, so
+  // three covers a 2.2x price move; past that the problem is not the price.
+  TX_MAX_BUMPS: z.coerce.number().int().nonnegative().default(3),
+  // Beyond this the wait is longer than anyone will sit through, and holding
+  // the connection open teaches the caller nothing they can act on.
+  MAX_QUEUE_DEPTH: z.coerce.number().int().positive().default(20),
 
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });
