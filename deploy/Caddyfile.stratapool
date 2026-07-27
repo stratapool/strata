@@ -27,6 +27,24 @@ stratapool.xyz, www.stratapool.xyz {
   @circuit path /circuit/*
   header @circuit Cache-Control "public, max-age=31536000, immutable"
 
+  # Vite names these by content hash, so a changed file is a changed URL and
+  # the old one is never asked for again.
+  @assets path /assets/*
+  header @assets Cache-Control "public, max-age=31536000, immutable"
+
+  # Everything else — index.html above all — must be revalidated every time.
+  #
+  # index.html was served with an ETag and no Cache-Control, which does not
+  # mean "do not cache": with no explicit lifetime a browser applies heuristic
+  # freshness, typically a tenth of the age since Last-Modified, and does not
+  # ask again until it expires. So a visitor kept an hours-old index.html
+  # pointing at hashed bundles that were themselves cached immutably, and went
+  # on running superseded code with no way to notice — including through a
+  # deploy that fixed the outage they were looking at. no-cache still allows
+  # the cache; it requires revalidation first, which the ETag makes cheap.
+  @html not path /assets/* /circuit/*
+  header @html Cache-Control "no-cache"
+
   handle {
     root * /srv/strata
     try_files {path} /index.html
