@@ -242,7 +242,7 @@ export class MockPool implements PoolClient {
    * an observer discards them. Reporting the raw unspent count instead would
    * overstate protection — badly, in a fast-growing pool.
    */
-  assessPrivacy(_amount: number): PrivacyAssessment {
+  assessPrivacy(): PrivacyAssessment {
     const mine = this.getNotes();
     const oldest = mine.reduce<Note | null>(
       (a, n) => (a === null || n.createdAt < a.createdAt ? n : a),

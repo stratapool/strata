@@ -273,11 +273,22 @@ export class ChainPool implements PoolClient {
       // so a gap this long means we are past the end.
       const GAP_LIMIT = 20;
       let misses = 0;
+      let highest = -1;
       for (let i = 0; misses < GAP_LIMIT; i++) {
         const { nullifier, secret } = deriveNoteSecrets(this.#seed, this.#cfg.poolAddress, i);
-        misses = consider(`note-${i}`, nullifier, secret) ? 0 : misses + 1;
+        if (consider(`note-${i}`, nullifier, secret)) {
+          misses = 0;
+          highest = i;
+        } else {
+          misses += 1;
+        }
       }
-      this.#nextDerivedIndex = found.length;
+      // One past the highest index that actually landed — not the count of
+      // them. A gap anywhere in the sequence, which one failed deposit is
+      // enough to produce, made the count point back at an index already on
+      // chain; the next deposit then reverted on "commitment already used",
+      // and did so again on every retry.
+      this.#nextDerivedIndex = highest + 1;
     }
 
     for (const entry of noteVault.all()) {
@@ -526,6 +537,16 @@ export class ChainPool implements PoolClient {
   }
 
   /** Exposed so the UI can pre-download the proving key while the user reads. */
+  /**
+   * Pre-fetches the proving key.
+   *
+   * Called when the Withdraw tab opens rather than at withdrawal time. It was
+   * never called at all, so the 20 MB fetch fired inside prove(): to anyone
+   * watching the connection, a large transfer followed seconds later by a small
+   * POST and then an on-chain withdrawal is an unmistakable, precisely-timed
+   * announcement of intent. Fetching it while the user is still reading
+   * separates the two.
+   */
   warmUpProver(onProgress?: (p: { loaded: number; total: number }) => void) {
     return this.#prover.warmUp(onProgress);
   }

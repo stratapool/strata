@@ -1,5 +1,14 @@
 import { useEffect, useRef } from 'react';
 
+/**
+ * Ceiling on queued arrival animations.
+ *
+ * Small on purpose: this is decoration for deposits happening now, and more
+ * than a handful in flight reads as a glitch rather than as activity. It is
+ * also the backstop for any future path that queues while nothing is drawing.
+ */
+const MAX_SPARKS = 12;
+
 interface Point {
   x: number;
   y: number;
@@ -59,10 +68,30 @@ export function DotField({
   countRef.current = count;
   denomRef.current = denomination;
 
+  // A tab that has been away is not owed the animations it missed. Anything
+  // still queued when it returns is stale by definition — the deposits it
+  // depicts landed minutes ago — and playing it is what produced the burst.
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) sparks.current.length = 0;
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   useEffect(() => {
     if (pulseSignal === lastPulse.current) return;
     const n = pulseSignal - lastPulse.current;
     lastPulse.current = pulseSignal;
+
+    // Nothing is spawned while the tab is hidden.
+    //
+    // requestAnimationFrame does not run there, so sparks were queued and never
+    // consumed: the fifteen-second poll kept moving pulseSignal, each move added
+    // up to four, and none of them advanced. Returning to a tab left open for a
+    // while replayed the whole backlog at once — a wall of particles, each one
+    // also depositing a permanent dot into the field as it landed.
+    if (typeof document !== 'undefined' && document.hidden) return;
 
     // Labels are generated from the live denomination rather than a fixed
     // list: the mockup hardcoded "+1 ETH", which would advertise an amount
@@ -73,7 +102,10 @@ export function DotField({
       return multiple === 1 ? `+${d} ETH` : `+${d} ETH ×${multiple}`;
     };
 
-    for (let i = 0; i < Math.min(n, 4); i++) {
+    // Bounded twice: per signal, and in total. The per-signal cap alone let a
+    // slow tab accumulate an unbounded queue.
+    const room = Math.max(0, MAX_SPARKS - sparks.current.length);
+    for (let i = 0; i < Math.min(n, 4, room); i++) {
       sparks.current.push({
         x: 0.08 + Math.random() * 0.84,
         y: -0.08,

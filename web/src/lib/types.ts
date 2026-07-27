@@ -158,7 +158,12 @@ export interface PoolClient {
   getBalance(): number;
   splitAmount(amount: number): Split;
   quoteWithdrawal(amount: number): FeeBreakdown;
-  assessPrivacy(amount: number): PrivacyAssessment;
+  /**
+   * The assessment is about the pool and the age of the oldest note held, not
+   * about an amount. The signature said otherwise and both implementations
+   * ignored the argument, so a caller passing one was silently doing nothing.
+   */
+  assessPrivacy(): PrivacyAssessment;
   estimateDepositGas(noteCount: number): number;
   deposit(req: DepositRequest, onStep: (i: number) => void): Promise<void>;
   withdraw(req: WithdrawRequest, onStep: (i: number) => void): Promise<void>;
@@ -174,4 +179,13 @@ export interface PoolClient {
 
   /** Accepts a note string. Verified against the chain before it is stored. */
   importNote(encoded: string): Promise<ImportResult>;
+
+  /**
+   * Pre-fetches the proving key, if this client needs one.
+   *
+   * Optional because the simulated pool proves nothing. On the live client it
+   * separates the 20 MB download from the withdrawal it would otherwise
+   * announce.
+   */
+  warmUpProver?(onProgress?: (p: { loaded: number; total: number }) => void): Promise<void>;
 }

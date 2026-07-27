@@ -15,6 +15,12 @@ export function createServer(
   queue: SerialQueue,
 ): Express {
   const app = express();
+  // Behind Caddy. Without this every request carries the proxy's address, so
+  // express-rate-limit keyed all clients into a single bucket: one caller could
+  // spend the whole 20/min budget and deny withdrawals to everybody else. It is
+  // exactly 1 because there is exactly one proxy in front — a larger number
+  // would let a caller forge X-Forwarded-For and evade the limit entirely.
+  app.set('trust proxy', 1);
   app.use(helmet());
   app.use(express.json({ limit: '64kb' }));
 
@@ -85,7 +91,18 @@ export function createServer(
         const { gasEstimate } = await pool.preflight(request);
 
         // Serialised: one in-flight transaction per hot wallet, always.
-        const result = await queue.run(() => pool.submit(request, gasEstimate));
+        //
+        // The spent check moves inside the lock as well. preflight runs
+        // concurrently, so twenty copies of one valid proof all passed it
+        // before the first was mined; the first spent the note and the rest
+        // were broadcast, reverted on chain at the contract's own
+        // already-spent guard, and cost the relayer gas for nothing. Rechecking
+        // here — after every earlier submission has settled — is what makes the
+        // duplicates free to reject.
+        const result = await queue.run(async () => {
+          await pool.assertUnspent(request);
+          return pool.submit(request, gasEstimate);
+        });
         res.json(result);
       } catch (e) {
         if (e instanceof RelayRejected) {

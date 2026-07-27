@@ -60,6 +60,21 @@ export class PoolClient {
    * Everything that can be checked without spending gas, checked before we do.
    * Order matters: cheapest and most likely to fail first.
    */
+  /**
+   * Rejects a note that has already been burned.
+   *
+   * Called twice on purpose. preflight does it early so an obviously dead
+   * request never reaches estimateGas; the queue does it again immediately
+   * before submitting, because preflight runs concurrently and a burst of
+   * duplicates would otherwise all clear it while the first was still in
+   * flight. Only the second call is load-bearing — the first is politeness.
+   */
+  async assertUnspent(req: WithdrawRequest): Promise<void> {
+    if (await this.contract.isSpent!(req.nullifierHash)) {
+      throw new RelayRejected('note already spent');
+    }
+  }
+
   async preflight(
     req: WithdrawRequest,
   ): Promise<{ gasEstimate: bigint; expectedCost: bigint; worstCost: bigint; fee: bigint }> {

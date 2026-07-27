@@ -10,6 +10,7 @@ import { Lockup } from '../components/Logo';
 import { SocialLinks, X_URL, GITHUB_URL } from '../components/Social';
 import { initAppKit } from '../config/appkit';
 import { isLive } from '../lib/usePool';
+import { noteVault } from '../lib/noteVault';
 import type { PoolClient, PoolState } from '../lib/types';
 import type { useWallet } from '../lib/useWallet';
 
@@ -695,10 +696,55 @@ function Transfer({
               Imported notes live only in this browser — their keys came from
               someone else's wallet, so signing in elsewhere will not find them.
               Keep the original string until you have withdrawn.
+              {/* The previous version stopped at the line above, which reads as
+                  reassurance. Both halves of the actual situation were missing:
+                  the keys sit unencrypted, and the browser's own "clear site
+                  data" destroys the money. */}
+              <div style={{ marginTop: 8 }}>
+                They are stored <b style={{ color: 'var(--ink-70)' }}>unencrypted</b>{' '}
+                in this browser's local storage. Clearing site data deletes them
+                and the funds with them, unless you still hold the string.
+              </div>
+              <ForgetImported />
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Removes imported notes from this browser.
+ *
+ * noteVault.clear() existed and nothing called it, so a note handed over on a
+ * shared or borrowed machine stayed there permanently with no way to remove it
+ * short of wiping the whole origin — which would also take the AppKit balance
+ * cache keyed by the user's own address, and any other note.
+ */
+function ForgetImported() {
+  const [count, setCount] = useState(() => noteVault.all().length);
+  const [confirming, setConfirming] = useState(false);
+  if (count === 0) return null;
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button
+        className="quick"
+        onClick={() => {
+          if (!confirming) {
+            setConfirming(true);
+            return;
+          }
+          noteVault.clear();
+          setCount(0);
+          setConfirming(false);
+        }}
+        style={confirming ? { borderColor: 'var(--alarm)', color: 'var(--alarm)' } : undefined}
+      >
+        {confirming
+          ? `Really forget ${count}? Unwithdrawn notes are lost without the string`
+          : `Forget ${count} imported note${count === 1 ? '' : 's'} on this device`}
+      </button>
     </div>
   );
 }
@@ -730,8 +776,16 @@ function Withdraw({
 
   const parsed = Number(amount) || 0;
   const quote = pool.quoteWithdrawal(parsed);
-  const assessment = pool.assessPrivacy(parsed);
+  const assessment = pool.assessPrivacy();
   const tooMuch = parsed > balance;
+
+  // Fetch the 20 MB proving key while the tab is being read, not at the moment
+  // of withdrawal. Doing it inside prove() published the intent: a large
+  // transfer, then a small POST, then an on-chain withdrawal, seconds apart and
+  // trivially recognisable to anyone watching the connection.
+  useEffect(() => {
+    void pool.warmUpProver?.();
+  }, [pool]);
 
   const run = async () => {
     if (assessment.requiresConfirmation && !confirming) {
