@@ -274,7 +274,7 @@ export class ChainPool implements PoolClient {
       const GAP_LIMIT = 20;
       let misses = 0;
       for (let i = 0; misses < GAP_LIMIT; i++) {
-        const { nullifier, secret } = deriveNoteSecrets(this.#seed, i);
+        const { nullifier, secret } = deriveNoteSecrets(this.#seed, this.#cfg.poolAddress, i);
         misses = consider(`note-${i}`, nullifier, secret) ? 0 : misses + 1;
       }
       this.#nextDerivedIndex = found.length;
@@ -427,7 +427,11 @@ export class ChainPool implements PoolClient {
     onStep(1);
     const commitments: bigint[] = [];
     for (let i = 0; i < split.totalNotes; i++) {
-      const { nullifier, secret } = deriveNoteSecrets(this.#seed, startIndex + i);
+      const { nullifier, secret } = deriveNoteSecrets(
+        this.#seed,
+        this.#cfg.poolAddress,
+        startIndex + i,
+      );
       commitments.push(
         pedersenHash(concat(leInt2Buff(nullifier, 31), leInt2Buff(secret, 31))),
       );

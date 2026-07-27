@@ -10,7 +10,10 @@ dist/
 # contribution used randomness, and the deployed verifier was generated from
 # that exact file. Its SHA-256 is recorded in the README so anyone can verify
 # the copy they downloaded, without the repo carrying the bytes.
-circuits/build/
+# The trailing /* matters: git does not descend into an excluded directory, so
+# `circuits/build/` followed by a negation left verification_key.json ignored
+# while both this comment and the README claimed it was committed.
+circuits/build/*
 !circuits/build/verification_key.json
 web/public/circuit/
 

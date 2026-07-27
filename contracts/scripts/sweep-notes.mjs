@@ -117,7 +117,7 @@ async function main() {
   const found = [];
   let misses = 0;
   for (let i = 0; misses < GAP_LIMIT; i++) {
-    const note = deriveNoteSecrets(seed, i);
+    const note = deriveNoteSecrets(seed, info.contracts.pool, i);
     const commitment = pedersenHash(
       concat(leInt2Buff(note.nullifier, 31), leInt2Buff(note.secret, 31)),
     );

@@ -26,8 +26,9 @@ import { keccak_256 } from '@noble/hashes/sha3';
  * so this string is frozen: it is bound to the chain and carries an explicit
  * version, and a new scheme must bump the version rather than edit the text.
  *
- * Deliberately NOT bound to a pool address. Notes are per-wallet, not
- * per-pool, so a redeployment does not strand anything a user already holds.
+ * Deliberately NOT bound to a pool address: one signature has to recover a
+ * user's notes in every pool, so the *seed* stays pool-independent. Individual
+ * notes do not — see deriveNoteSecrets.
  */
 export const DERIVATION_MESSAGE = [
   'Strata — derive private note keys',
@@ -66,16 +67,42 @@ export function seedFromSignature(signature) {
 }
 
 /**
- * Note `index` for this seed.
+ * Note `index` for this seed, in this pool.
  *
- * The seed goes in as its hex *text*, which is what the original browser
- * implementation did — `${seed}:${index}:${tag}` is a template string. Hashing
- * the seed's bytes instead would be equally sound and completely incompatible,
- * which is the kind of difference that loses money silently.
+ * The pool address is in the hash for a reason that took an audit to surface.
+ * Without it, the same wallet derived index 0 identically everywhere, and the
+ * client restarts its index count per pool — so a user with a note in one pool
+ * deposited a byte-identical commitment into the next one. Two pools whose leaf
+ * sequences share a prefix publish the same merkle roots, and the circuit binds
+ * no pool identity into a proof: the six public signals are root, nullifierHash,
+ * recipient, relayer, fee, refund and nothing else. A withdrawal proof from one
+ * pool is therefore valid calldata for another that shares a verifier, which
+ * both deployed pools do.
+ *
+ * The consequence was not theft — mirroring leaves to a larger denomination
+ * costs more than it yields — but anyone could copy a victim's proof into the
+ * other pool, force-spend their second note to the same recipient, and publish
+ * the link between their two deposits. That is precisely the property the pool
+ * exists to prevent.
+ *
+ * Lowercased so a checksummed and an unchecksummed address cannot derive two
+ * different notes for the same pool.
+ *
+ * The seed goes in as its hex *text*: `${seed}:${pool}:${index}:${tag}` is a
+ * template string. Hashing the seed's bytes instead would be equally sound and
+ * completely incompatible, which is the kind of difference that loses money
+ * silently.
  */
-export function deriveNoteSecrets(seed, index) {
+export function deriveNoteSecrets(seed, pool, index) {
+  if (typeof pool !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(pool)) {
+    throw new Error(
+      'deriveNoteSecrets needs the pool address — notes derived without it are ' +
+        'identical across pools and replayable between them',
+    );
+  }
+  const scope = pool.toLowerCase();
   const at = (tag) =>
-    (BigInt(`0x${toHex(keccak_256(utf8(`${seed}:${index}:${tag}`)))}`) %
+    (BigInt(`0x${toHex(keccak_256(utf8(`${seed}:${scope}:${index}:${tag}`)))}`) %
       FIELD_SIZE) &
     MASK_248;
   return { nullifier: at('nullifier'), secret: at('secret') };

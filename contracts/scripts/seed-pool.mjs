@@ -10,7 +10,7 @@
  * writing was incomplete in a way nobody noticed until the money was gone.
  *
  * This script has no such file. Every note comes from
- * `deriveNoteSecrets(seedFromSignature(sign(DERIVATION_MESSAGE)), i)`, the same
+ * `deriveNoteSecrets(seedFromSignature(sign(DERIVATION_MESSAGE)), pool, i)`, the same
  * derivation the browser uses, so the wallet *is* the backup. Delete this
  * machine and the notes are still recoverable by signing the same message
  * again, on any device, forever.
@@ -115,7 +115,7 @@ async function main() {
   let misses = 0;
   const mine = [];
   for (let i = 0; misses < GAP_LIMIT; i++) {
-    const note = deriveNoteSecrets(seed, i);
+    const note = deriveNoteSecrets(seed, info.contracts.pool, i);
     const c = commitmentOf(note).toString();
     if (onChain.has(c)) {
       mine.push(i);
@@ -143,7 +143,7 @@ async function main() {
   // --------------------------------------------------------------- stage one
   rule();
   line('STAGE 1 — one note, then prove it can come back out');
-  const first = deriveNoteSecrets(seed, startIndex);
+  const first = deriveNoteSecrets(seed, info.contracts.pool, startIndex);
   const firstCommitment = commitmentOf(first);
   const tx = await pool
     .connect(wallet)
@@ -174,7 +174,7 @@ async function main() {
   line(`STAGE 2 — remaining ${rest} notes`);
   for (let k = 0; k < rest; k++) {
     const i = startIndex + 1 + k;
-    const c = commitmentOf(deriveNoteSecrets(seed, i));
+    const c = commitmentOf(deriveNoteSecrets(seed, info.contracts.pool, i));
     const t = await pool
       .connect(wallet)
       .deposit(ethers.toBeHex(c, 32), { value: denomination });
@@ -214,7 +214,7 @@ async function proveRecoverable({ label, provider, pool, info, wallet, deps }) {
 
   line('  recovering it with nothing but the wallet…');
   const freshSeed = seedFromSignature(await wallet.signMessage(DERIVATION_MESSAGE));
-  const note = deriveNoteSecrets(freshSeed, label);
+  const note = deriveNoteSecrets(freshSeed, info.contracts.pool, label);
   const commitment = commitmentOf(note);
 
   const events = await pool.queryFilter(pool.filters.Deposit(), info.deployBlock, 'latest');
