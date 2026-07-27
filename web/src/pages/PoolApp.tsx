@@ -228,6 +228,34 @@ function PageHead({ title, meta }: { title: string; meta: string }) {
  * sentence that tells them whether they refused, ran out of gas, or hit a
  * contract rule — not a stack trace, and not a silent stall.
  */
+/**
+ * A percentage that does not round a live figure to zero.
+ *
+ * Two decimals is right once the reserve is a percent or so of the pool. Below
+ * that it prints 0.00% — indistinguishable from a pool that has never paid a
+ * fee, on the one screen whose job is to report what is actually there.
+ */
+function sharePct(v: number): string {
+  if (v === 0) return '0';
+  if (v >= 1) return pct(v);
+  return v.toFixed(Math.min(6, Math.max(2, Math.ceil(-Math.log10(v)) + 1)));
+}
+
+/**
+ * Note age in whatever unit makes it legible.
+ *
+ * The figure is used to judge whether a note has sat long enough to be worth
+ * withdrawing, so the first hours are exactly the range that matters, and
+ * exactly the range "0.0d" erases.
+ */
+function noteAge(days: number): string {
+  if (days <= 0) return '—';
+  if (days >= 1) return `${days.toFixed(1)}d`;
+  const hours = days * 24;
+  if (hours >= 1) return `${hours.toFixed(1)}h`;
+  return `${Math.max(1, Math.round(hours * 60))}m`;
+}
+
 function readableError(e: unknown): string {
   const err = e as { shortMessage?: string; reason?: string; code?: string | number; message?: string };
   if (err?.code === 'ACTION_REJECTED' || err?.code === 4001) {
@@ -1055,13 +1083,19 @@ function PoolStats({ state }: { state: PoolState }) {
                 // "5,000,000.00%". There is no meaningful share of nothing.
                 [
                   'Reserve share of pool',
+                  // Two fixed decimals printed 0.002% as "0.00%" — a real,
+                  // growing number rendered as nothing. The reserve is 0.1% of
+                  // each withdrawal against the whole pool's principal, so it
+                  // is small by construction and stays small for a long time.
                   state.totalEthInPool > 0
-                    ? `${pct((state.reserveEth / state.totalEthInPool) * 100)}%`
+                    ? `${sharePct((state.reserveEth / state.totalEthInPool) * 100)}%`
                     : '—',
                   false,
                 ],
                 ['Anonymity set, 30d', `+${pct(state.anonSetGrowth30d, 1)}%`, true],
-                ['Average note age', `${state.avgNoteAgeDays.toFixed(1)}d`, false],
+                // Days to one decimal reads "0.0d" for anything under two and a
+                // half hours, which is every note in a pool that opened today.
+                ['Average note age', noteAge(state.avgNoteAgeDays), false],
                 ['Reserve withdrawal fn', 'None', false],
               ].map(([l, v, hi]) => (
                 <div key={l as string} style={{ borderTop: '1px solid rgba(17,17,16,.2)', paddingTop: 14 }}>

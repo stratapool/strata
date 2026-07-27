@@ -142,15 +142,34 @@ export function DotField({
       const aspect = w / Math.max(1, h);
       const cols = Math.max(2, Math.round(Math.sqrt(n * aspect)));
       const rows = Math.max(2, Math.ceil(n / cols));
+
+      // The field grows with the set instead of always filling the canvas.
+      //
+      // Spreading fifty notes evenly over a 1900px canvas put them seventeen
+      // across and three down, which reads as an empty page rather than as a
+      // small pool — understating the set, not flattering it. Occupying a
+      // centred region proportional to the count means a handful looks like a
+      // handful and a thousand fills the frame, which is the comparison the
+      // picture is for.
+      const fill = Math.min(1, 0.3 + 0.7 * Math.sqrt(n / 600));
+      const lo = (1 - fill) / 2;
+
+      // Fewer notes, larger dots. At the low end each one is a visible object;
+      // at the high end they have to be small or the field turns into a solid
+      // block and stops conveying a count at all.
+      const scale = Math.max(1, 2.4 - n / 300);
+
       const out: Point[] = [];
       for (let r = 0; r < rows && out.length < n; r++) {
         for (let c = 0; c < cols && out.length < n; c++) {
+          const gx = (c + 0.5) / cols + ((Math.random() - 0.5) * 0.55) / cols;
+          const gy = (r + 0.5) / rows + ((Math.random() - 0.5) * 0.75) / rows;
           out.push({
-            x: (c + 0.5) / cols + ((Math.random() - 0.5) * 0.55) / cols,
-            y: (r + 0.5) / rows + ((Math.random() - 0.5) * 0.75) / rows,
+            x: lo + gx * fill,
+            y: lo + gy * fill,
             ph: Math.random() * 6.2832,
             br: Math.random() < 0.08,
-            s: 0.8 + Math.random() * 0.7,
+            s: (0.8 + Math.random() * 0.7) * scale,
           });
         }
       }
