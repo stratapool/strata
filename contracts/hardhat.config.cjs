@@ -1,5 +1,6 @@
 require('@nomicfoundation/hardhat-ethers');
 require('@nomicfoundation/hardhat-chai-matchers');
+require('@nomicfoundation/hardhat-verify');
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -24,5 +25,27 @@ module.exports = {
       accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
     },
   },
+  // Source verification on Blockscout, so the deployed bytecode can be checked
+  // against the code in this repository by anyone, without asking us.
+  //
+  // The compiler settings above are part of the claim: verification only
+  // succeeds if solc 0.8.28 with the optimizer at 200 runs and viaIR off
+  // reproduces the exact bytecode on chain. Changing any of them silently
+  // breaks it, which is the point.
+  etherscan: {
+    apiKey: { robinhood: 'blockscout-needs-no-key' },
+    customChains: [
+      {
+        network: 'robinhood',
+        chainId: 4663,
+        urls: {
+          apiURL: 'https://robinhoodchain.blockscout.com/api',
+          browserURL: 'https://robinhoodchain.blockscout.com',
+        },
+      },
+    ],
+  },
+  sourcify: { enabled: false },
+
   mocha: { timeout: 300000 },
 };
