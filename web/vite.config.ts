@@ -33,6 +33,16 @@ export default defineConfig({
   // nothing — `npm run preview` is where this gets checked.
   preview: {
     port: 4173,
+    // Same proxy as the dev server. Without it the ceremony page renders
+    // against an unreachable API in exactly the build that gets tested before
+    // release, which is the build where that matters most.
+    proxy: {
+      '/ceremony': {
+        target: 'http://127.0.0.1:8789',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/ceremony/, ''),
+      },
+    },
     headers: {
       'Content-Security-Policy':
         "default-src 'self'; " +

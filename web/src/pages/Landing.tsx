@@ -91,7 +91,6 @@ export function Landing() {
   // frame. Asserting non-null here blanked the whole page in production
   // while the mock — which always has a tier open — showed nothing wrong.
   const openTier = state.tiers.find((t) => t.open);
-  const nextTier = state.tiers.find((t) => !t.open);
 
   return (
     <>
@@ -419,9 +418,12 @@ export function Landing() {
             <span style={{ color: '#35d3b0' }}>⚿</span>
             No owner · no upgrade · no pause
             {openTier && ` · fixed denomination ${openTier.value} ETH`}
-            {openTier &&
-              nextTier &&
-              ` · ${nextTier.value} unlocks at ${count(nextTier.unlockThreshold)} notes`}
+            {/* No unlock claim. Planned tiers carry unlockThreshold 0, so this
+                rendered "0.1 unlocks at 0 notes" — a threshold that means
+                nothing, attached to a promise that does not exist. Each size is
+                its own contract and has to be deployed deliberately, which the
+                docs section says three paragraphs further up. A footer that
+                contradicts it is worse than a footer that omits it. */}
           </div>
         </div>
       </div>

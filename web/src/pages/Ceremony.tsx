@@ -216,11 +216,16 @@ function Contribute({ status, onDone }: { status: CeremonyStatus | null; onDone:
             : phase === 'contributing'
               ? 'Contributing — do not close this tab'
               : 'Uploading…'
-          : status?.finalised
-            ? 'The ceremony is finalised'
-            : status?.slotOpen
-              ? 'Contribute'
-              : 'Someone is contributing — try again shortly'}
+          : // A null status means the coordinator could not be reached. Saying
+            // "someone is contributing" there invents a fact about a service we
+            // cannot see, and sends the user away to wait for nothing.
+            status === null
+            ? 'Cannot reach the ceremony'
+            : status.finalised
+              ? 'The ceremony is finalised'
+              : status.slotOpen
+                ? 'Contribute'
+                : 'Someone is contributing — try again shortly'}
       </button>
 
       {failure && (

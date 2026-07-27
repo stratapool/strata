@@ -118,7 +118,27 @@ export class CeremonyState {
   async begin(circuitHash: string | null, drandRound: number | null): Promise<void> {
     this.#transcript.circuitHash ??= circuitHash;
     this.#transcript.startedAt ??= new Date().toISOString();
-    if (this.#transcript.drandRound === null) this.#transcript.drandRound = drandRound;
+
+    // The announced round can be moved while it is still in the future, and
+    // only then. The property being protected is that the value does not exist
+    // when it is named — a round already published could have been picked for
+    // its value, which is the whole thing announcing one in advance prevents.
+    // Shortening the window costs contributions, not soundness.
+    if (drandRound !== null && drandRound !== this.#transcript.drandRound) {
+      const previous = this.#transcript.drandRound;
+      this.#transcript.drandRound = drandRound;
+      if (previous !== null) {
+        console.warn(
+          `
+⚠ announced beacon round moved: ${previous} → ${drandRound}.` +
+            `
+  Sound only because ${drandRound} has not been published yet.` +
+            `
+  Say so publicly — silently changing it reads as picking one.
+`,
+        );
+      }
+    }
     await this.#persist();
   }
 
