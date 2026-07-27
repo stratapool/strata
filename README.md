@@ -22,11 +22,15 @@ review the code has actually had:
   warnings are about `recipientSquare` / `feeSquare` / `relayerSquare` each
   appearing in a single constraint — which is deliberate; those signals exist
   only to bind the public inputs into the proof.
-- **13 tests** covering deposit, proof generation, on-chain verification,
-  double-spend rejection, and the recipient-tampering attack that a missing
-  constraint would enable.
-- An end-to-end run against the live pool: five deposits, five withdrawals to
-  fresh addresses, one rejected double-spend. See `scripts/e2e-live.mjs`.
+- **39 tests** across the three packages: 19 on the contracts, covering
+  deposit, proof generation, on-chain verification, double-spend rejection, the
+  recipient-tampering attack a missing constraint would enable, and frozen
+  vectors for note-key derivation; 14 in the client; 6 on the relayer.
+- An end-to-end run against the live pool: deposits, withdrawals to fresh
+  addresses, a rejected double-spend. See `scripts/e2e-live.mjs`.
+- The browser client exercised against the deployed pool — scanning, note
+  export and import, and Groth16 proving in the page, checked against the
+  published verification key.
 
 None of that is an audit. A linter cannot tell you whether a circuit computes
 the right thing, and the people who wrote the code are the worst people to
@@ -37,21 +41,22 @@ pool can hold, and no owner who could intervene. If the circuit is wrong, an
 attacker can forge proofs and take everything — and a forged proof is
 indistinguishable on-chain from a real one.
 
-**The phase-2 trusted setup has not yet been run publicly.** Groth16's
+**The deployed key still comes from a single-party phase 2.** Groth16's
 parameters derive from a secret that must be destroyed; whoever can reconstruct
 it can forge proofs and empty the pool, and a forged proof is indistinguishable
 on-chain from a real one. Phase 1 comes from the Perpetual Powers of Tau, where
 thousands of participants mean only one had to be honest. Phase 2 was run here
-by a single party.
+by one party, and one party's word is the whole of its security.
 
-The contribution's entropy comes from `crypto.randomBytes(32)`. An earlier
-revision used `Date.now() + Math.random()` — a recoverable timestamp and a
-non-CSPRNG — and the first deployment shipped with a key generated that way.
-That key is gone; the pool below was deployed against a freshly generated one.
-Good entropy does not fix the underlying problem, though: a single-party phase 2
-rests entirely on that party having destroyed its secret, and nobody else can
-verify that. Any pool meant to hold other people's money needs a public,
-multi-party ceremony and a redeployment against its output.
+**A public ceremony is now open at [stratapool.xyz/#/ceremony](https://stratapool.xyz/#/ceremony).**
+It runs in the browser — a 20 MB download, two seconds of computation, an
+upload — and closes with drand round 6362166, announced in advance so the
+beacon cannot be shopped for. When it finishes, the verifier and the pool are
+redeployed against its output and this paragraph gets rewritten.
+
+Until that happens the pool below is backed by the single-party key, and the
+count on the ceremony page is only meaningful if its contributors are different
+people: contributions are anonymous, so nothing there proves they are.
 
 Until then, treat this as a demonstration.
 
@@ -109,6 +114,14 @@ that way you do not have to trust the host it came from:
 ```bash
 curl -sO https://stratapool.xyz/circuit/withdraw_final.27fe02b1.zkey
 sha256sum withdraw_final.27fe02b1.zkey
+```
+
+The verification key is served too, so a proof can be checked without trusting
+anything here:
+
+```bash
+curl -sO https://stratapool.xyz/circuit/verification_key.json
+sha256sum verification_key.json
 ```
 
 The filename carries the first 8 hex of that hash. It is served `immutable`
