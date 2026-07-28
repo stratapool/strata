@@ -816,3 +816,211 @@ input {
 @keyframes tickDraw {
   to { stroke-dashoffset: 0; }
 }
+
+/* ────────────────────────────────────────────── pool showcase
+
+   The Pool tab is the page a stranger is sent to when they ask what this
+   contract is, so it is laid out as a document with numbered sections rather
+   than a dashboard of tiles. Every rule here is structural; the figures inside
+   come from the chain. */
+
+/* Not `.dotfield`, which is a fixed 340px built for the old caption. The hero
+   below is taller and `overflow:hidden` would crop it — the number and the copy
+   simply vanish, with nothing on screen to indicate they were cut. */
+.dotfield-hero {
+  min-height: 520px;
+}
+
+.section-rule {
+  display: flex;
+  align-items: baseline;
+  gap: 22px;
+  border-bottom: var(--rule);
+  padding-bottom: 20px;
+}
+.section-rule-title {
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 500;
+  line-height: 1;
+}
+.section-rule-meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-45);
+}
+.section-rule-dark {
+  border-bottom-color: rgba(239, 238, 234, 0.35);
+}
+.section-rule-dark .section-rule-meta {
+  color: rgba(239, 238, 234, 0.5);
+}
+
+.hero-pool {
+  position: relative;
+  padding: 62px 56px 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.78fr);
+  gap: 56px;
+  align-items: end;
+  min-height: 460px;
+  /* The canvas underneath must stay visible and inert; only the facts column
+     takes pointer events back, so hovering the hero never eats a click. */
+  pointer-events: none;
+}
+.hero-pool-live {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 30px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+}
+.hero-pool-number {
+  font-size: clamp(88px, 17vw, 200px);
+  font-weight: 500;
+  line-height: 0.8;
+  letter-spacing: -0.02em;
+}
+.hero-pool-copy {
+  max-width: 620px;
+  margin-top: 32px;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--ink-70);
+}
+.hero-pool-facts {
+  display: flex;
+  flex-direction: column;
+  border-top: var(--rule);
+  pointer-events: auto;
+}
+.hero-pool-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ink-12);
+}
+
+.blink-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+  animation: blink 1.8s ease-in-out infinite;
+}
+
+.how-three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: var(--rule);
+  margin-top: 0;
+}
+.how-step {
+  padding: 30px 34px 34px 0;
+  border-right: 1px solid var(--ink-12);
+}
+.how-step:last-child {
+  border-right: 0;
+}
+
+.fee-three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 30px;
+}
+
+/* Inverted, because this section is the one making a checkable claim and the
+   change of ground is what makes a reader stop and read it. */
+.pool-dark {
+  background: var(--ink);
+  color: var(--paper);
+  margin-top: 76px;
+  border-top: var(--rule);
+}
+.pool-dark .eyebrow {
+  color: rgba(239, 238, 234, 0.55);
+}
+.pool-dark .quick {
+  border-color: rgba(239, 238, 234, 0.4);
+  background: transparent;
+  color: var(--paper);
+}
+.pool-dark .quick:hover {
+  border-color: var(--paper);
+}
+
+.contract-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 8px;
+}
+.contract-card {
+  padding: 32px 36px 34px 0;
+  border-right: 1px solid rgba(239, 238, 234, 0.2);
+}
+.contract-card:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+.contract-addr {
+  font-size: 11.5px;
+  word-break: break-all;
+  opacity: 0.62;
+  line-height: 1.6;
+}
+
+.hash-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ink-12);
+}
+.hash-value {
+  font-size: 11.5px;
+  color: var(--ink-55);
+  word-break: break-all;
+  text-align: right;
+}
+
+@media (max-width: 1000px) {
+  .hero-pool {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 34px;
+    padding: 44px 24px 34px;
+    min-height: 0;
+  }
+  .how-three,
+  .contract-grid,
+  .fee-three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .how-step,
+  .contract-card {
+    border-right: 0;
+    border-bottom: 1px solid var(--ink-12);
+    padding: 24px 0;
+  }
+  .contract-card {
+    border-bottom-color: rgba(239, 238, 234, 0.2);
+  }
+  .how-step:last-child,
+  .contract-card:last-child {
+    border-bottom: 0;
+  }
+  .section-rule {
+    gap: 14px;
+  }
+  .section-rule-meta {
+    display: none;
+  }
+  .hash-value {
+    font-size: 10px;
+  }
+}

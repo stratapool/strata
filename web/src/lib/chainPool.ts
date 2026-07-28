@@ -509,6 +509,7 @@ export class ChainPool implements PoolClient {
       // instead of inventing a number keeps the figure honest.
       uniqueDepositors: this.#deposits.length,
       reserveHistory: [],
+      depositsPerDay: this.#depositsPerDay(),
       avgNoteAgeDays: this.#averageAgeDays(),
       anonSetGrowth30d: 0,
     };
@@ -538,6 +539,28 @@ export class ChainPool implements PoolClient {
    * Scanning is entirely local. The chain is public, so no query here reveals
    * which leaves are ours — asking a server would.
    */
+  /**
+   * Deposits bucketed by day, oldest first, over however long the pool has
+   * existed — capped at two weeks so the bars stay legible.
+   *
+   * Drawn from the timestamps already in the Deposit events, so it costs
+   * nothing extra and cannot report a day that did not happen.
+   */
+  #depositsPerDay(): number[] {
+    if (!this.#deposits.length) return [];
+    const DAY = 86_400;
+    const now = Math.floor(Date.now() / 1000);
+    const first = Math.min(...this.#deposits.map((d) => d.timestamp));
+    const days = Math.min(14, Math.max(1, Math.ceil((now - first) / DAY)));
+    const buckets = new Array<number>(days).fill(0);
+    for (const d of this.#deposits) {
+      // Which bucket back from today this deposit falls in.
+      const back = Math.floor((now - d.timestamp) / DAY);
+      if (back < days) buckets[days - 1 - back]! += 1;
+    }
+    return buckets;
+  }
+
   async #rescanNotes(): Promise<void> {
     const { crypto, leInt2Buff } = await import('@strata/shared/note');
     const { pedersenHash } = await crypto();
@@ -910,6 +933,7 @@ function emptyState(chainId: number): PoolState {
     reserveEth: 0,
     uniqueDepositors: 0,
     reserveHistory: [],
+    depositsPerDay: [],
     avgNoteAgeDays: 0,
     anonSetGrowth30d: 0,
   };

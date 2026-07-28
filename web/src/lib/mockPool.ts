@@ -143,6 +143,9 @@ export class MockPool implements PoolClient {
       reserveEth: this.seed.reserveEth,
       uniqueDepositors: this.seed.uniqueDepositors,
       reserveHistory: history,
+      depositsPerDay: Array.from({ length: 14 }, (_, i) =>
+        Math.round(this.seed.growthPerTick * 40 * ((i + 1) / 14) ** 1.4),
+      ),
       avgNoteAgeDays: this.seed.avgNoteAgeDays,
       anonSetGrowth30d: this.seed.anonSetGrowth30d,
     };

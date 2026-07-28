@@ -68,6 +68,15 @@ export interface PoolState {
   uniqueDepositors: number;
   /** Weekly reserve growth, oldest first. Used by the bar chart. */
   reserveHistory: number[];
+  /**
+   * Notes deposited per day over the pool's actual lifetime, oldest first.
+   *
+   * The panel used to plot twelve weeks of reserve growth against a pool that
+   * had existed for one day: twelve bars, all empty, animating. Deposit
+   * timestamps come with the events already being read, so this is the same
+   * shape drawn from something that exists.
+   */
+  depositsPerDay: number[];
   avgNoteAgeDays: number;
   anonSetGrowth30d: number;
 }

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStrata } from '../lib/useStrata';
-import { useCountUp } from '../lib/useCountUp';
-import { count, denomLabel, eth, ethAuto, pct } from '../lib/format';
-import { DotField } from '../components/DotField';
+import { count, denomLabel, eth, ethAuto } from '../lib/format';
+import { PoolShowcase } from '../components/PoolShowcase';
 import { PrivacyScore } from '../components/PrivacyScore';
 import { Steps } from '../components/Steps';
 import { WalletChip, WalletGate } from '../components/WalletChip';
@@ -167,7 +166,7 @@ export function PoolApp() {
           <Gated title="Withdraw" wallet={wallet} />
         ))}
       {/* Pool stats are public data — no wallet needed to look at the set. */}
-      {tab === 'pool' && <PoolStats state={state} />}
+      {tab === 'pool' && <PoolShowcase state={state} />}
         </>
       )}
 
@@ -280,33 +279,7 @@ function PageHead({ title, meta }: { title: string; meta: string }) {
  * sentence that tells them whether they refused, ran out of gas, or hit a
  * contract rule — not a stack trace, and not a silent stall.
  */
-/**
- * A percentage that does not round a live figure to zero.
- *
- * Two decimals is right once the reserve is a percent or so of the pool. Below
- * that it prints 0.00% — indistinguishable from a pool that has never paid a
- * fee, on the one screen whose job is to report what is actually there.
- */
-function sharePct(v: number): string {
-  if (v === 0) return '0';
-  if (v >= 1) return pct(v);
-  return v.toFixed(Math.min(6, Math.max(2, Math.ceil(-Math.log10(v)) + 1)));
-}
 
-/**
- * Note age in whatever unit makes it legible.
- *
- * The figure is used to judge whether a note has sat long enough to be worth
- * withdrawing, so the first hours are exactly the range that matters, and
- * exactly the range "0.0d" erases.
- */
-function noteAge(days: number): string {
-  if (days <= 0) return '—';
-  if (days >= 1) return `${days.toFixed(1)}d`;
-  const hours = days * 24;
-  if (hours >= 1) return `${hours.toFixed(1)}h`;
-  return `${Math.max(1, Math.round(hours * 60))}m`;
-}
 
 function readableError(e: unknown): string {
   const err = e as { shortMessage?: string; reason?: string; code?: string | number; message?: string };
@@ -1180,183 +1153,3 @@ function Withdraw({
   );
 }
 
-function PoolStats({ state }: { state: PoolState }) {
-  const [pulse, setPulse] = useState(0);
-  const maxBar = Math.max(...state.reserveHistory, 1e-9);
-  const openTier = state.tiers.find((t) => t.open);
-
-  // Deposits rain in continuously rather than on a button press: the landing
-  // is the point, and making it opt-in meant most visitors never saw it.
-  useEffect(() => {
-    setPulse((p) => p + 3);
-    const id = setInterval(() => setPulse((p) => p + 1), 3400);
-    return () => clearInterval(id);
-  }, []);
-
-  const notesShown = useCountUp(state.totalUnspentNotes, 1400, 'pool');
-  const tvlShown = useCountUp(state.totalEthInPool, 1400, 'pool');
-  const depositorsShown = useCountUp(state.uniqueDepositors, 1400, 'pool');
-
-  return (
-    <>
-      <div className="dotfield" style={{ borderBottom: 'var(--rule)', position: 'relative', background: 'var(--surface)', overflow: 'hidden' }}>
-        <DotField
-          count={state.totalUnspentNotes}
-          pulseSignal={pulse}
-          denomination={openTier?.value ?? 0.1}
-        />
-        <div className="dotfield-caption">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
-            Anonymity set · each dot is one unspent note
-          </div>
-          <div className="display tabular h-pool" style={{ fontWeight: 500, lineHeight: 1 }}>
-            {count(notesShown)}
-          </div>
-          <div className="tabular" style={{ marginTop: 10, fontSize: 13, color: 'var(--ink-55)' }}>
-            {ethAuto(tvlShown)} ETH in pool · {count(depositorsShown)} unique depositors
-          </div>
-        </div>
-        <div
-          className="dotfield-live"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 10,
-            fontSize: 11,
-            letterSpacing: '.18em',
-            color: 'var(--ink-55)',
-            pointerEvents: 'none',
-            textTransform: 'uppercase',
-          }}
-        >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: 'var(--accent)',
-              animation: 'blink 1.8s ease-in-out infinite',
-            }}
-          />
-          Live · deposits keep landing, and land indistinguishable
-        </div>
-      </div>
-
-      <div className="shell-narrow page-in" style={{ paddingTop: 52 }}>
-        <div className="pool-grid">
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 18 }}>Denominations</div>
-            <div style={{ borderTop: 'var(--rule)' }}>
-              {state.tiers.map((t, i) => (
-                <div
-                  key={t.value}
-                  className="tabular tier-row"
-                  style={{
-                    padding: '15px 0',
-                    borderBottom: '1px solid rgba(17,17,16,.15)',
-                    color: t.open ? 'var(--ink)' : 'var(--ink-45)',
-                    animation: `rowIn .6s cubic-bezier(.2,.7,.2,1) ${i * 0.07}s both`,
-                  }}
-                >
-                  <span className="display" style={{ fontWeight: 500, fontSize: 24 }}>{denomLabel(t.value)}</span>
-                  <span style={{ fontSize: 13.5 }}>{t.open ? `${count(t.unspentNotes)} unspent` : '—'}</span>
-                  <span style={{ fontSize: 13.5, textAlign: 'right' }}>{t.open ? `${ethAuto(t.ethLocked)} ETH` : '—'}</span>
-                  {/* "LOCKED" implied an on-chain threshold that unlocks.
-                      There is none — each size is a separate deployment with
-                      its own anonymity set, so these are labelled as what
-                      they are: a roadmap. */}
-                  <span style={{ fontSize: 11, letterSpacing: '.08em', textAlign: 'right', color: t.open ? 'var(--accent)' : 'var(--ink-45)' }}>
-                    {t.open ? 'LIVE' : 'PLANNED'}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--ink-55)', marginTop: 14 }}>
-              Each size is its own pool contract with its own anonymity set —
-              nothing unlocks automatically. Running several at once would split
-              the set between them, so a new one only launches when the live pool
-              is thick enough to stand on its own.
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-                <span className="eyebrow">Reserve growth · last 12 weeks</span>
-                <span className="tabular" style={{ fontSize: 12, color: 'var(--accent)' }}>+{eth(state.reserveEth, 4)} ETH</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100, borderBottom: 'var(--rule)', position: 'relative', overflow: 'hidden' }}>
-                {state.reserveHistory.map((v, i) => (
-                  <div
-                    key={i}
-                    title={`week ${i - state.reserveHistory.length + 1}: ${eth(v, 4)} ETH`}
-                    style={{
-                      flex: 1,
-                      height: `${Math.max(4, (v / maxBar) * 100)}%`,
-                      background: 'linear-gradient(180deg,#35d3b0,#a9e86b)',
-                      transformOrigin: 'bottom',
-                      // Grow in on entry, then breathe — the last bar is the
-                      // one still accruing, so it should not look settled.
-                      animation:
-                        i === state.reserveHistory.length - 1
-                          ? `barGrow .7s cubic-bezier(.2,.7,.2,1) ${i * 0.04}s both, barLive 2.4s ${0.7 + i * 0.04}s ease-in-out infinite alternate`
-                          : `barGrow .7s cubic-bezier(.2,.7,.2,1) ${i * 0.04}s both`,
-                      transition: 'filter .25s',
-                    }}
-                  />
-                ))}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    width: '34%',
-                    background:
-                      'linear-gradient(100deg,transparent,rgba(253,253,252,.5) 50%,transparent)',
-                    animation: 'sheenX 3.2s ease-in-out infinite',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, letterSpacing: '.16em', color: 'var(--ink-45)' }}>
-                <span>W-12</span>
-                <span>THIS WEEK</span>
-              </div>
-            </div>
-
-            <div className="quad">
-              {[
-                // Guarding the divisor with 1e-9 turned an empty pool into
-                // "5,000,000.00%". There is no meaningful share of nothing.
-                [
-                  'Reserve share of pool',
-                  // Two fixed decimals printed 0.002% as "0.00%" — a real,
-                  // growing number rendered as nothing. The reserve is 0.1% of
-                  // each withdrawal against the whole pool's principal, so it
-                  // is small by construction and stays small for a long time.
-                  state.totalEthInPool > 0
-                    ? `${sharePct((state.reserveEth / state.totalEthInPool) * 100)}%`
-                    : '—',
-                  false,
-                ],
-                ['Anonymity set, 30d', `+${pct(state.anonSetGrowth30d, 1)}%`, true],
-                // Days to one decimal reads "0.0d" for anything under two and a
-                // half hours, which is every note in a pool that opened today.
-                ['Average note age', noteAge(state.avgNoteAgeDays), false],
-                ['Reserve withdrawal fn', 'None', false],
-              ].map(([l, v, hi]) => (
-                <div key={l as string} style={{ borderTop: '1px solid rgba(17,17,16,.2)', paddingTop: 14 }}>
-                  <div className="eyebrow" style={{ fontSize: 10, letterSpacing: '.2em', marginBottom: 6 }}>{l as string}</div>
-                  <div className="display tabular" style={{ fontWeight: 500, fontSize: 30, color: hi ? 'var(--accent)' : undefined }}>
-                    {v as string}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
