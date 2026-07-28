@@ -390,7 +390,12 @@ export function Landing() {
               [ethAuto(state.totalEthInPool), 'ETH in pool', false],
               [count(state.totalUnspentNotes), 'unspent notes · anonymity set', true],
               [eth(state.reserveEth, 4), 'ETH in reserve · no withdrawal function', false],
-              [count(state.uniqueDepositors), 'unique depositors', false],
+              // Not "unique depositors", which this said while the value was
+              // the deposit count — 100 against three addresses. Distinct
+              // depositors are not observable on chain, and that is the
+              // protocol working rather than a gap to paper over with a
+              // flattering label.
+              [count(state.uniqueDepositors), 'deposits, all time', false],
             ].map(([v, l, hi]) => (
               <div key={l as string} style={{ borderTop: '1px solid rgba(239,238,234,.3)', paddingTop: 24 }}>
                 <div
